@@ -1,0 +1,19 @@
+[project]
+name = "open-meteo-cast"
+version = "0.0.1"
+description = ""
+authors = [
+    {name = "Maximiliano Bidegain",email = "maxibide@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+]
+
+[tool.poetry]
+packages = [{include = "open_meteo_cast", from = "src"}]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -2,6 +2,7 @@ from typing import Dict, Optional
 import yaml
 import requests
 import json
+from datetime import datetime
 
 def load_config(config_path: str) -> Dict:
     """Load configuration from a YAML archive"""
@@ -55,7 +56,20 @@ def main():
     model_metadata = retrieve_model_metadata(url)
 
     if model_metadata:
-        print(json.dumps(model_metadata, indent=4, sort_keys=True))
+        timestamp_keys = [
+            "data_end_time",
+            "last_run_availability_time",
+            "last_run_initialisation_time",
+            "last_run_modification_time"
+        ]
+        for key in timestamp_keys:
+            if key in model_metadata and isinstance(model_metadata[key], (int, float)):
+                try:
+                    model_metadata[key] = datetime.fromtimestamp(model_metadata[key]).strftime('%Y-%m-%d %H:%M:%S')
+                except (ValueError, OSError):
+                    pass # Keep original value if conversion fails
+        for key, value in model_metadata.items():
+            print(f"{key}: {value}")
 
 if __name__ == "__main__":
     main()

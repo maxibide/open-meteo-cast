@@ -2,9 +2,8 @@
 name = "open-meteo-cast"
 version = "0.0.1"
 description = "Automated weather forecasting system using ensemble statistics from global models via Open-Meteo"
-authors = [
-    {name = "Maximiliano Bidegain",email = "maxibide@gmail.com"}
-]
+authors = ["Maximiliano Bidegain"]
+
 readme = "README.md"
 packages = [{include = "open_meteo_cast", from = "src"}]
 

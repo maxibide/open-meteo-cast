@@ -41,20 +41,8 @@ def retrieve_model_metadata(url: str, timeout: int = 30) -> Optional[Dict]:
         print(f"Error decoding JSON from {url}: {e}")
         return None
 
-def main():
-    """Main function to load config, retrieve data, and print it."""
-    config = load_config('resources/default_config.yaml')
-    if not config:
-        return
-
-    try:
-        url = config['api']['open-meteo']['ensemble_metadata']['gfs']
-    except KeyError:
-        print("Error: Could not find the required URL in the configuration file.")
-        return
-
-    model_metadata = retrieve_model_metadata(url)
-
+def print_model_metadata(model_metadata: Dict) -> int:
+    """Formats and prints dictionary with model metadata"""
     if model_metadata:
         timestamp_keys = [
             "data_end_time",
@@ -70,6 +58,22 @@ def main():
                     pass # Keep original value if conversion fails
         for key, value in model_metadata.items():
             print(f"{key}: {value}")
+    return 0
+
+def main():
+    """Main function to load config, retrieve data, and print it."""
+    config = load_config('resources/default_config.yaml')
+    if not config:
+        return
+
+    try:
+        for model, url in config['api']['open-meteo']['ensemble_metadata'].items():
+            print(f"\n{model}\n")
+            model_metadata = retrieve_model_metadata(url)
+            print_model_metadata(model_metadata)
+    except KeyError:
+        print("Error: Could not find the required URL in the configuration file.")
+        return
 
 if __name__ == "__main__":
     main()

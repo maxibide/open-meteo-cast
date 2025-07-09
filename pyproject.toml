@@ -15,6 +15,10 @@ requests = ">=2.32.4,<3.0.0"
 [tool.poetry.scripts]
 open-meteo-cast = "open_meteo_cast.main:main"
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.1"
+pytest-mock = "^3.14.1"
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"

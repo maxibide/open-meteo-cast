@@ -60,20 +60,56 @@ def print_model_metadata(model_metadata: Dict) -> int:
             print(f"{key}: {value}")
     return 0
 
+def check_if_model_run_is_new(model_metadata: Dict) -> bool:
+    """Checks if the model run is newer than the last recorded run."""
+    last_run_file = 'last_run.json'
+    
+    try:
+        with open(last_run_file, 'r', encoding='utf-8') as file:
+            last_runs = json.load(file)
+    except FileNotFoundError:
+        last_runs = {}
+    except json.JSONDecodeError:
+        print(f"Warning: Could not decode JSON from {last_run_file}. Treating as empty.")
+        last_runs = {}
+
+    model_name = model_metadata.get('model')
+    current_run_time = model_metadata.get('last_run_initialisation_time')
+
+    if not model_name or current_run_time is None:
+        print("Error: Incomplete model metadata provided.")
+        return False
+
+    last_run_time = last_runs.get(model_name)
+
+    if last_run_time is None or current_run_time > last_run_time:
+        print(f"New model run detected for {model_name}.")
+        last_runs[model_name] = current_run_time
+        try:
+            with open(last_run_file, 'w', encoding='utf-8') as file:
+                json.dump(last_runs, file, indent=4)
+        except IOError as e:
+            print(f"Error writing updated run time to {last_run_file}: {e}")
+        return True
+    
+    print(f"No new model run for {model_name}.")
+    return False
+
 def main():
     """Main function to load config, retrieve data, and print it."""
     config = load_config('resources/default_config.yaml')
     if not config:
         return
 
-    try:
-        for model, url in config['api']['open-meteo']['ensemble_metadata'].items():
-            print(f"\n{model}\n")
-            model_metadata = retrieve_model_metadata(url)
-            print_model_metadata(model_metadata)
-    except KeyError:
-        print("Error: Could not find the required URL in the configuration file.")
-        return
+    models = ['gfs']
+    
+    for model in models:
+        url = config['api']['open-meteo']['ensemble_metadata'][model]
+        print(f"\n{model}\n")
+        model_metadata = retrieve_model_metadata(url)
+        model_metadata['model'] = model
+        print_model_metadata(model_metadata)
+        check_if_model_run_is_new(model_metadata)
 
 if __name__ == "__main__":
     main()

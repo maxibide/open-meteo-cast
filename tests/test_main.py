@@ -2,14 +2,15 @@ import pytest
 from unittest.mock import patch, mock_open, MagicMock
 import json
 from datetime import datetime
-import os
 import requests
 
 from src.open_meteo_cast.main import (
     load_config,
+    main,
+)
+from src.open_meteo_cast.weather_model import (
     retrieve_model_metadata,
     WeatherModel,
-    main,
 )
 
 # Test for load_config
@@ -97,7 +98,7 @@ class TestWeatherModel:
             "last_run_initialisation_time": "2023-03-15 12:00:00",
         }
 
-    @patch('src.open_meteo_cast.main.retrieve_model_metadata')
+    @patch('src.open_meteo_cast.weather_model.retrieve_model_metadata')
     def test_init(self, mock_retrieve_metadata, mock_config, mock_metadata):
         mock_retrieve_metadata.return_value = mock_metadata
         model = WeatherModel("gfs", mock_config)
@@ -106,7 +107,7 @@ class TestWeatherModel:
         assert model.metadata == mock_metadata
         mock_retrieve_metadata.assert_called_once_with("http://dummy-url.com")
 
-    @patch('src.open_meteo_cast.main.retrieve_model_metadata')
+    @patch('src.open_meteo_cast.weather_model.retrieve_model_metadata')
     def test_print_metadata(self, mock_retrieve_metadata, mock_config, mock_metadata, capsys):
         mock_retrieve_metadata.return_value = mock_metadata
         model = WeatherModel("gfs", mock_config)
@@ -119,7 +120,7 @@ class TestWeatherModel:
         )
         assert captured.out == expected_output
 
-    @patch('src.open_meteo_cast.main.retrieve_model_metadata')
+    @patch('src.open_meteo_cast.weather_model.retrieve_model_metadata')
     def test_check_if_new_first_run(self, mock_retrieve_metadata, mock_config, mock_metadata, capsys):
         mock_retrieve_metadata.return_value = mock_metadata
         model = WeatherModel("gfs", mock_config)
@@ -131,7 +132,7 @@ class TestWeatherModel:
                 assert "New model run detected for gfs." in captured.out
                 mocked_json_dump.assert_called_once_with({'gfs': '2023-03-15 12:00:00'}, mocked_file(), indent=4)
 
-    @patch('src.open_meteo_cast.main.retrieve_model_metadata')
+    @patch('src.open_meteo_cast.weather_model.retrieve_model_metadata')
     def test_check_if_new_newer_run(self, mock_retrieve_metadata, mock_config, mock_metadata, capsys):
         mock_retrieve_metadata.return_value = mock_metadata
         model = WeatherModel("gfs", mock_config)
@@ -144,7 +145,7 @@ class TestWeatherModel:
                 assert "New model run detected for gfs." in captured.out
                 mocked_json_dump.assert_called_once_with({'gfs': '2023-03-15 12:00:00'}, mocked_file(), indent=4)
 
-    @patch('src.open_meteo_cast.main.retrieve_model_metadata')
+    @patch('src.open_meteo_cast.weather_model.retrieve_model_metadata')
     def test_check_if_new_older_run(self, mock_retrieve_metadata, mock_config, mock_metadata, capsys):
         mock_retrieve_metadata.return_value = mock_metadata
         model = WeatherModel("gfs", mock_config)
@@ -157,14 +158,14 @@ class TestWeatherModel:
                 assert "No new model run for gfs." in captured.out
                 mocked_json_dump.assert_not_called()
 
-    @patch('src.open_meteo_cast.main.retrieve_model_metadata')
+    @patch('src.open_meteo_cast.weather_model.retrieve_model_metadata')
     def test_init_no_metadata(self, mock_retrieve_metadata, mock_config):
         mock_retrieve_metadata.return_value = None
         model = WeatherModel("gfs", mock_config)
         assert model.name == "gfs"
         assert model.metadata is None
 
-    @patch('src.open_meteo_cast.main.retrieve_model_metadata')
+    @patch('src.open_meteo_cast.weather_model.retrieve_model_metadata')
     def test_check_if_new_missing_timestamp(self, mock_retrieve_metadata, mock_config, capsys):
         mock_retrieve_metadata.return_value = {"model": "gfs"}  # Missing timestamp
         model = WeatherModel("gfs", mock_config)
@@ -173,7 +174,7 @@ class TestWeatherModel:
         captured = capsys.readouterr()
         assert "Error: Could not determine current run time for gfs." in captured.out
 
-    @patch('src.open_meteo_cast.main.retrieve_model_metadata')
+    @patch('src.open_meteo_cast.weather_model.retrieve_model_metadata')
     def test_check_if_new_write_error(self, mock_retrieve_metadata, mock_config, mock_metadata, capsys):
         mock_retrieve_metadata.return_value = mock_metadata
         model = WeatherModel("gfs", mock_config)

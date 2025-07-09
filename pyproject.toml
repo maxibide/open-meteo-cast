@@ -18,6 +18,10 @@ open-meteo-cast = "open_meteo_cast.main:main"
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.1"
 pytest-mock = "^3.14.1"
+ruff = "^0.12.2"
+mypy = "^1.16.1"
+types-pyyaml = "^6.0.12.20250516"
+types-requests = "^2.32.4.20250611"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

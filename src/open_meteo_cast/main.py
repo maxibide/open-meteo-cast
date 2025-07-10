@@ -24,7 +24,7 @@ def main():
     if not config:
         return
 
-    model_used = ['gfs']
+    model_used = ['gfs025']
 
     # 2. Create wheather models instances
     models = [WeatherModel(name, config) for name in model_used]
@@ -40,6 +40,9 @@ def main():
     # 4. Print metadata
     for model in models:
         model.print_metadata()
+        model.retrieve_data(config)
+        model.print_data()
+
 
 if __name__ == "__main__":
     main()

@@ -3,6 +3,15 @@ import requests
 import json
 from datetime import datetime
 
+import openmeteo_requests
+
+from openmeteo_sdk.Variable import Variable
+from openmeteo_sdk.Aggregation import Aggregation
+
+import pandas as pd
+import requests_cache
+from retry_requests import retry
+
 def retrieve_model_metadata(url: str, timeout: int = 30) -> Optional[Dict[str, Any]]:
     """Retrieves model metadata from a specified Open-Meteo API URL.
 
@@ -42,3 +51,65 @@ def retrieve_model_metadata(url: str, timeout: int = 30) -> Optional[Dict[str, A
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON from {url}: {e}")
         return None
+
+def retrieve_model_run(config: Dict[str, Any], model_name: str) -> pd.DataFrame:
+    """Retrieves hourly temperature data for a specific weather model from the Open-Meteo API.
+
+    This function sets up an Open-Meteo API client with caching and retry mechanisms,
+    then fetches hourly temperature data for a given model and location based on the
+    provided configuration.
+
+    Args:
+        config: A dictionary containing the application configuration, including API
+                endpoints and location details.
+        model_name: The name of the weather model to retrieve data for (e.g., 'gfs').
+
+    Returns:
+        A pandas DataFrame containing the hourly temperature data for the specified model,
+        with a 'date' column and columns for each ensemble member's temperature.
+    """
+
+    # Setup the Open-Meteo API client with cache and retry on error
+    cache_session = requests_cache.CachedSession('.cache', expire_after = 3600)
+    retry_session = retry(cache_session, retries = 5, backoff_factor = 0.2)
+    openmeteo = openmeteo_requests.Client(session = retry_session)
+
+    url = config['api']['open-meteo']['ensemble_url']
+    params = {
+        "latitude": config['location']['latitude'],
+        "longitude": config['location']['longitude'],
+        "hourly": "temperature_2m",
+        "models": [model_name],
+        "timezone": "auto",
+        "forecast_hours": 72
+    }
+
+    responses = openmeteo.weather_api(url, params=params)
+
+    # Process first location. Add a for-loop for multiple locations or weather models
+    response = responses[0]
+    print(f"Coordinates {response.Latitude()}°N {response.Longitude()}°E")
+    print(f"Elevation {response.Elevation()} m asl")
+    print(f"Timezone {response.Timezone()}{response.TimezoneAbbreviation()}")
+    print(f"Timezone difference to GMT+0 {response.UtcOffsetSeconds()} s")
+
+    # Process hourly data
+    hourly = response.Hourly()
+    hourly_variables = list(map(lambda i: hourly.Variables(i), range(0, hourly.VariablesLength())))
+    hourly_temperature_2m = filter(lambda x: x.Variable() == Variable.temperature and x.Altitude() == 2, hourly_variables)
+
+    hourly_data = {"date": pd.date_range(
+        start = pd.to_datetime(hourly.Time(), unit = "s", utc = True),
+        end = pd.to_datetime(hourly.TimeEnd(), unit = "s", utc = True),
+        freq = pd.Timedelta(seconds = hourly.Interval()),
+        inclusive = "left"
+    )}
+
+    # Process all members
+    for variable in hourly_temperature_2m:
+        member = variable.EnsembleMember()
+        hourly_data[f"temperature_2m_member{member}"] = variable.ValuesAsNumpy()
+
+    hourly_dataframe = pd.DataFrame(data = hourly_data)
+    print(hourly_dataframe)
+    return hourly_dataframe

@@ -1,6 +1,7 @@
-from typing import Dict
+from typing import Any, Dict, Optional
 import json
-from .open_meteo_api import retrieve_model_metadata
+import pandas as pd
+from .open_meteo_api import retrieve_model_metadata, retrieve_model_run
 
 class WeatherModel:
     """
@@ -59,10 +60,68 @@ class WeatherModel:
         return False
 
     def print_metadata(self) -> None:
-        """Formats and prints dictionary with model metadata"""
+        """Formats and prints dictionary with model metadata."""
         print(f"Name: {self.name}")
         if self.metadata is None:
             print(f"Error: Metadata not available for {self.name}.")
             return
         for key, value in self.metadata.items():
             print(f"{key}: {value}")
+
+    def retrieve_data(self, config: Dict[str, Any]) -> None:
+        """Retrieves the weather model data using the provided configuration.
+
+        Args:
+
+            config: The application configuration dictionary.
+
+        """
+        self.data = retrieve_model_run(config, self.name)
+
+    def print_data(self) -> None:
+        """Prints the retrieved weather data and saves it to 'datos.csv'."""
+        print(self.data)
+        if self.data is not None:
+            self.data.to_csv('datos.csv')
+
+    def get_data(self) -> Optional[pd.DataFrame]:
+        """Returns the retrieved weather data.
+
+        Returns:
+
+            A pandas DataFrame containing the weather data, or None if not yet retrieved.
+
+        """
+        return self.data
+
+    def get_name(self) -> str:
+        """Returns the name of the weather model.
+
+        Returns:
+
+            The name of the model as a string.
+
+        """
+        return self.name
+
+    def get_metadata(self) -> Optional[Dict[str, Any]]:
+        """Returns the metadata of the weather model.
+
+        Returns:
+
+            A dictionary containing the model metadata, or None if not yet retrieved.
+
+        """
+        return self.metadata
+
+    def get_last_run_time(self) -> Optional[str]:
+        """Returns the last run initialization time from the model metadata.
+
+        Returns:
+
+            A string representing the last run initialization time, or None if not available.
+
+        """
+        if self.metadata:
+            return self.metadata.get('last_run_initialisation_time')
+        return None

@@ -7,10 +7,12 @@ api:
   open-meteo:
 
     ensemble_metadata:
-      access-g: "https://ensemble-api.open-meteo.com/data/bom_access_global_ensemble/static/meta.json"
-      gdps: "https://ensemble-api.open-meteo.com/data/cmc_gem_geps/static/meta.json"
-      icon: "https://ensemble-api.open-meteo.com/data/dwd_icon_eps/static/meta.json"
-      ifs: "https://ensemble-api.open-meteo.com/data/ecmwf_ifs025_ensemble/static/meta.json"
-      aifs: "https://ensemble-api.open-meteo.com/data/ecmwf_aifs025_ensemble/static/meta.json"
-      gfs: "https://ensemble-api.open-meteo.com/data/ncep_gefs025/static/meta.json"
-      ukmo: "https://ensemble-api.open-meteo.com/data/ukmo_global_ensemble_20km/static/meta.json"
+      bom_access_global_ensemble: "https://ensemble-api.open-meteo.com/data/bom_access_global_ensemble/static/meta.json"
+      gem_global: "https://ensemble-api.open-meteo.com/data/cmc_gem_geps/static/meta.json"
+      icon_global: "https://ensemble-api.open-meteo.com/data/dwd_icon_eps/static/meta.json"
+      ecmwf_ifs025: "https://ensemble-api.open-meteo.com/data/ecmwf_ifs025_ensemble/static/meta.json"
+      ecmwf_aifs025: "https://ensemble-api.open-meteo.com/data/ecmwf_aifs025_ensemble/static/meta.json"
+      gfs025: "https://ensemble-api.open-meteo.com/data/ncep_gefs025/static/meta.json"
+      ukmo_global_ensemble_20km: "https://ensemble-api.open-meteo.com/data/ukmo_global_ensemble_20km/static/meta.json"
+
+    ensemble_url: "https://ensemble-api.open-meteo.com/v1/ensemble"

@@ -92,42 +92,13 @@ class WeatherModel:
         if self.data is not None:
             self.data.to_csv('datos.csv')
 
-    def get_data(self) -> Optional[pd.DataFrame]:
-        """Returns the retrieved weather data.
-
-        Returns:
-
-            A pandas DataFrame containing the weather data, or None if not yet retrieved.
-
-        """
-        return self.data
-
-    def get_name(self) -> str:
-        """Returns the name of the weather model.
-
-        Returns:
-
-            The name of the model as a string.
-
-        """
-        return self.name
-
-    def get_metadata(self) -> Optional[Dict[str, Any]]:
-        """Returns the metadata of the weather model.
-
-        Returns:
-
-            A dictionary containing the model metadata, or None if not yet retrieved.
-
-        """
-        return self.metadata
-
-    def get_last_run_time(self) -> Optional[str]:
+    @property
+    def last_run_time(self) -> Optional[datetime]:
         """Returns the last run initialization time from the model metadata.
 
         Returns:
 
-            A string representing the last run initialization time, or None if not available.
+            A datetime object representing the last run initialization time, or None if not available.
 
         """
         if self.metadata:

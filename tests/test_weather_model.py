@@ -123,19 +123,19 @@ class TestWeatherModel:
         mock_retrieve_model_run.return_value = pd.DataFrame({'date': [], 'temperature_2m_member0': []})
         model.retrieve_data(mock_config)
         mock_retrieve_model_run.assert_called_once_with(mock_config, "gfs025")
-        assert isinstance(model.get_data(), pd.DataFrame)
+        assert isinstance(model.data, pd.DataFrame)
 
     def test_get_name(self, mock_weather_model_instance):
         model = mock_weather_model_instance
-        assert model.get_name() == "gfs025"
+        assert model.name == "gfs025"
 
     def test_get_metadata(self, mock_weather_model_instance, mock_metadata):
         model = mock_weather_model_instance
-        assert model.get_metadata() == mock_metadata
+        assert model.metadata == mock_metadata
 
     def test_get_last_run_time(self, mock_weather_model_instance):
         model = mock_weather_model_instance
-        assert model.get_last_run_time() == datetime(2023, 3, 15, 12, 0, 0)
+        assert model.last_run_time == datetime(2023, 3, 15, 12, 0, 0)
 
     @patch('src.open_meteo_cast.weather_model.retrieve_model_run')
     @patch('pandas.DataFrame.to_csv')
@@ -152,4 +152,4 @@ class TestWeatherModel:
     @patch('src.open_meteo_cast.weather_model.retrieve_model_run')
     def test_get_data_none(self, mock_retrieve_model_run, mock_weather_model_instance):
         model = mock_weather_model_instance
-        assert model.get_data() is None
+        assert model.data is None

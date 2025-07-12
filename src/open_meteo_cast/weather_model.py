@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional
 import json
 import pandas as pd
+from datetime import datetime
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_run
 
 class WeatherModel:
@@ -44,11 +45,18 @@ class WeatherModel:
             print(f"Error: Could not determine current run time for {self.name}.")
             return False
 
-        last_run_time = last_runs.get(self.name)
+        last_run_time_str = last_runs.get(self.name)
+        last_run_time = None
+        if last_run_time_str:
+            try:
+                last_run_time = datetime.fromisoformat(last_run_time_str)
+            except ValueError:
+                print(f"Warning: Could not parse last run time '{last_run_time_str}' for {self.name}.")
+
 
         if last_run_time is None or current_run_time > last_run_time:
             print(f"New model run detected for {self.name}.")
-            last_runs[self.name] = current_run_time
+            last_runs[self.name] = current_run_time.isoformat()
             try:
                 with open(last_run_file, 'w', encoding='utf-8') as file:
                     json.dump(last_runs, file, indent=4)

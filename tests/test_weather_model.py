@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import patch, mock_open
 import json
 import pandas as pd
+from datetime import datetime
 
 from src.open_meteo_cast.weather_model import WeatherModel
 
@@ -27,7 +28,7 @@ class TestWeatherModel:
     def mock_metadata(self):
         return {
             "model": "gfs025",
-            "last_run_initialisation_time": "2023-03-15 12:00:00",
+            "last_run_initialisation_time": datetime(2023, 3, 15, 12, 0, 0),
         }
 
     @pytest.fixture
@@ -62,22 +63,22 @@ class TestWeatherModel:
                 assert result is True
                 captured = capsys.readouterr()
                 assert "New model run detected for gfs025." in captured.out
-                mocked_json_dump.assert_called_once_with({'gfs025': '2023-03-15 12:00:00'}, mocked_file(), indent=4)
+                mocked_json_dump.assert_called_once_with({'gfs025': '2023-03-15T12:00:00'}, mocked_file(), indent=4)
 
     def test_check_if_new_newer_run(self, mock_weather_model_instance, capsys):
         model = mock_weather_model_instance
-        initial_content = {"gfs025": "2023-03-14 12:00:00"}
+        initial_content = {"gfs025": "2023-03-14T12:00:00"}
         with patch("builtins.open", mock_open(read_data=json.dumps(initial_content))) as mocked_file:
             with patch("json.dump") as mocked_json_dump:
                 result = model.check_if_new()
                 assert result is True
                 captured = capsys.readouterr()
                 assert "New model run detected for gfs025." in captured.out
-                mocked_json_dump.assert_called_once_with({'gfs025': '2023-03-15 12:00:00'}, mocked_file(), indent=4)
+                mocked_json_dump.assert_called_once_with({'gfs025': '2023-03-15T12:00:00'}, mocked_file(), indent=4)
 
     def test_check_if_new_older_run(self, mock_weather_model_instance, capsys):
         model = mock_weather_model_instance
-        initial_content = {"gfs025": "2023-03-16 12:00:00"}
+        initial_content = {"gfs025": "2023-03-16T12:00:00"}
         with patch("builtins.open", mock_open(read_data=json.dumps(initial_content))):
             with patch("json.dump") as mocked_json_dump:
                 result = model.check_if_new()
@@ -134,7 +135,7 @@ class TestWeatherModel:
 
     def test_get_last_run_time(self, mock_weather_model_instance):
         model = mock_weather_model_instance
-        assert model.get_last_run_time() == "2023-03-15 12:00:00"
+        assert model.get_last_run_time() == datetime(2023, 3, 15, 12, 0, 0)
 
     @patch('src.open_meteo_cast.weather_model.retrieve_model_run')
     @patch('pandas.DataFrame.to_csv')

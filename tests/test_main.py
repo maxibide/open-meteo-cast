@@ -56,7 +56,7 @@ def test_retrieve_model_metadata_success():
         mock_get.return_value.raise_for_status.return_value = None
         
         metadata = retrieve_model_metadata("http://dummy-url.com")
-        assert metadata["last_run_initialisation_time"] == datetime.fromtimestamp(1678886400).strftime('%Y-%m-%d %H:%M:%S')
+        assert metadata["last_run_initialisation_time"] == datetime.fromtimestamp(1678886400)
 
 def test_retrieve_model_metadata_request_exception():
     with patch("requests.get", side_effect=requests.exceptions.RequestException("Connection error")):

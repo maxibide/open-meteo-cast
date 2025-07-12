@@ -6,7 +6,6 @@ from datetime import datetime
 import openmeteo_requests
 
 from openmeteo_sdk.Variable import Variable
-from openmeteo_sdk.Aggregation import Aggregation
 
 import pandas as pd
 import requests_cache
@@ -41,7 +40,7 @@ def retrieve_model_metadata(url: str, timeout: int = 30) -> Optional[Dict[str, A
         for key in timestamp_keys:
             if key in json_metadata and isinstance(json_metadata[key], (int, float)):
                 try:
-                    json_metadata[key] = datetime.fromtimestamp(json_metadata[key]).strftime('%Y-%m-%d %H:%M:%S')
+                    json_metadata[key] = datetime.fromtimestamp(json_metadata[key])
                 except (ValueError, OSError):
                     pass
         return json_metadata
@@ -85,6 +84,10 @@ def retrieve_model_run(config: Dict[str, Any], model_name: str) -> pd.DataFrame:
     }
 
     responses = openmeteo.weather_api(url, params=params)
+
+    if not responses:
+        print("No data received from Open-Meteo API.")
+        return None
 
     # Process first location. Add a for-loop for multiple locations or weather models
     response = responses[0]

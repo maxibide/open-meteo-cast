@@ -13,7 +13,7 @@ class WeatherModel:
         Initializes the WeatherModel instance.
 
         Args:
-            model_name: The name of the model (e.g., 'gfs').
+            model_name: The name of the model (e.g., 'gfs025').
             config: The application configuration dictionary.
         """
         self.name = model_name

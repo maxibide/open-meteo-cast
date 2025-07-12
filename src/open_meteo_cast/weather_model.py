@@ -1,6 +1,5 @@
 from typing import Any, Dict, Optional
 import json
-import pandas as pd
 from datetime import datetime
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_run
 from .statistics import calculate_percentiles

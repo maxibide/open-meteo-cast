@@ -54,6 +54,8 @@ def main():
 
         model.retrieve_data(config)
         model.print_data()
+        model.calculate_statistics()
+        model.print_statistics()
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ import json
 import pandas as pd
 from datetime import datetime
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_run
+from .statistics import calculate_percentiles
 
 class WeatherModel:
     """
@@ -20,6 +21,7 @@ class WeatherModel:
         self.metadata_url = config.get('api', {}).get('open-meteo', {}).get('ensemble_metadata', {}).get(model_name)
         self.metadata = retrieve_model_metadata(self.metadata_url)
         self.data = None
+        self.statistics = None
 
     def check_if_new(self, last_run_file: str = 'last_run.json') -> bool:
         """
@@ -91,6 +93,27 @@ class WeatherModel:
         print(self.data)
         if self.data is not None:
             self.data.to_csv('datos.csv')
+
+    def calculate_statistics(self) -> None:
+        """
+        Calculates row-wise statistics (p10, median, p90) from the retrieved data
+        and stores them in self.statistics.
+        """
+        if self.data is not None:
+            self.statistics = calculate_percentiles(self.data)
+        else:
+            print(f"Error: No data available to calculate statistics for {self.name}.")
+            self.statistics = None
+
+    def print_statistics(self) -> None:
+        """
+        Prints the calculated statistics.
+        """
+        if self.statistics is not None:
+            print(f"\nStatistics for {self.name}:")
+            print(self.statistics)
+        else:
+            print(f"No statistics available for {self.name}.")
 
     @property
     def last_run_time(self) -> Optional[datetime]:

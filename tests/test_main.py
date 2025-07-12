@@ -108,6 +108,8 @@ def test_main_one_new_run_proceeds(mock_load_config, mock_weather_model, capsys)
 
     mock_model_instance.check_if_new.assert_called_once()
     mock_model_instance.retrieve_data.assert_called_once()
+    mock_model_instance.calculate_statistics.assert_called_once()
+    mock_model_instance.print_statistics.assert_called_once()
     mock_model_instance.print_data.assert_called_once()
     captured = capsys.readouterr()
     assert "Found new runs for the following models: ['gfs025']" in captured.out
@@ -154,6 +156,8 @@ def test_main_mixed_runs_processes_only_new(mock_load_config, mock_weather_model
     assert model_ecmwf.check_if_new.called
 
     model_gfs.retrieve_data.assert_called_once()
+    model_gfs.calculate_statistics.assert_called_once()
+    model_gfs.print_statistics.assert_called_once()
     model_ecmwf.retrieve_data.assert_not_called()
 
     captured = capsys.readouterr()

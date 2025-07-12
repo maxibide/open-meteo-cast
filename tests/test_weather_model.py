@@ -125,6 +125,56 @@ class TestWeatherModel:
         mock_retrieve_model_run.assert_called_once_with(mock_config, "gfs025")
         assert isinstance(model.data, pd.DataFrame)
 
+    def test_calculate_statistics(self, mock_weather_model_instance):
+        model = mock_weather_model_instance
+        # Mock some data for calculation
+        model.data = pd.DataFrame({
+            'date': pd.to_datetime(['2023-01-01', '2023-01-02']),
+            'member1': [10, 20],
+            'member2': [12, 22],
+            'member3': [11, 21],
+            'member4': [13, 23],
+            'member5': [14, 24]
+        })
+        model.calculate_statistics()
+        assert isinstance(model.statistics, pd.DataFrame)
+        assert 'p10' in model.statistics.columns
+        assert 'median' in model.statistics.columns
+        assert 'p90' in model.statistics.columns
+        assert model.statistics['p10'].iloc[0] == pytest.approx(10.4)
+        assert model.statistics['median'].iloc[0] == pytest.approx(12.0)
+        assert model.statistics['p90'].iloc[0] == pytest.approx(13.6)
+
+    def test_calculate_statistics_no_data(self, mock_weather_model_instance, capsys):
+        model = mock_weather_model_instance
+        model.data = None
+        model.calculate_statistics()
+        assert model.statistics is None
+        captured = capsys.readouterr()
+        assert "Error: No data available to calculate statistics for gfs025." in captured.out
+
+    def test_print_statistics(self, mock_weather_model_instance, capsys):
+        model = mock_weather_model_instance
+        model.statistics = pd.DataFrame({
+            'date': pd.to_datetime(['2023-01-01']),
+            'p10': [10.4],
+            'median': [12.0],
+            'p90': [13.6]
+        })
+        model.print_statistics()
+        captured = capsys.readouterr()
+        assert "Statistics for gfs025:" in captured.out
+        assert "p10" in captured.out
+        assert "median" in captured.out
+        assert "p90" in captured.out
+
+    def test_print_statistics_no_statistics(self, mock_weather_model_instance, capsys):
+        model = mock_weather_model_instance
+        model.statistics = None
+        model.print_statistics()
+        captured = capsys.readouterr()
+        assert "No statistics available for gfs025." in captured.out
+
     def test_get_name(self, mock_weather_model_instance):
         model = mock_weather_model_instance
         assert model.name == "gfs025"

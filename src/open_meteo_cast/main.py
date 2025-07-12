@@ -1,5 +1,6 @@
 from typing import Dict, Any
 import yaml
+import os
 from datetime import datetime, timedelta
 from .weather_model import WeatherModel
 
@@ -40,6 +41,10 @@ def main():
 
     print(f"Found new runs for the following models: {[model.name for model in new_models]}")
 
+    # Create output directory if it doesn't exist
+    output_dir = 'output'
+    os.makedirs(output_dir, exist_ok=True)
+
     for model in new_models:
         print(f"\n--- Processing model: {model.name} ---")
         model.print_metadata()
@@ -56,7 +61,9 @@ def main():
         model.print_data()
         model.calculate_statistics()
         model.print_statistics()
+        model.export_statistics_to_csv(output_dir)
 
 
 if __name__ == "__main__":
     main()
+

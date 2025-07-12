@@ -1,5 +1,6 @@
 from typing import Any, Dict, Optional
 import json
+import os
 from datetime import datetime
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_run
 from .statistics import calculate_percentiles
@@ -113,6 +114,35 @@ class WeatherModel:
             print(self.statistics)
         else:
             print(f"No statistics available for {self.name}.")
+
+    def export_statistics_to_csv(self, output_dir: str = 'output') -> None:
+        """
+        Exports the calculated statistics to a CSV file in the specified directory.
+
+        The filename is generated based on the model name and the last run initialization time.
+
+        Args:
+            output_dir: The directory where the CSV file will be saved. Defaults to 'output'.
+        """
+        if self.statistics is None:
+            print(f"No statistics available to export for {self.name}.")
+            return
+
+        last_run = self.last_run_time
+        if last_run is None:
+            print(f"Error: Cannot determine last run time for {self.name}. Cannot export statistics.")
+            return
+
+        # Format timestamp for filename
+        timestamp_str = last_run.strftime('%Y%m%dT%H%M%S')
+        filename = f"{self.name}_{timestamp_str}.csv"
+        filepath = os.path.join(output_dir, filename)
+
+        try:
+            self.statistics.to_csv(filepath, index=False)
+            print(f"Successfully exported statistics to {filepath}")
+        except IOError as e:
+            print(f"Error exporting statistics to {filepath}: {e}")
 
     @property
     def last_run_time(self) -> Optional[datetime]:

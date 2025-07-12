@@ -209,3 +209,6 @@ __marimo__/
 # Gemini-cli
 last_run.json
 gemini.md
+
+# Output directory for generated files
+output/

@@ -1,5 +1,6 @@
 from typing import Dict, Any
 import yaml
+from datetime import datetime, timedelta
 from .weather_model import WeatherModel
 
 def load_config(config_path: str) -> Dict[str, Any]:
@@ -12,8 +13,8 @@ def load_config(config_path: str) -> Dict[str, Any]:
         return {}
     except yaml.YAMLError as e:
         print(f"Error reading YAML file: {e}")
-        return {} 
-    
+        return {}
+
 def main():
     """
     Main function to orchestrate the weather model data workflow.
@@ -37,9 +38,18 @@ def main():
     else:
         print("New model runs found")
 
-    # 4. Print metadata
+    # 4. Print metadata and retrieve data if conditions are met
     for model in models:
         model.print_metadata()
+
+        if model.metadata:
+            availability_time = model.metadata.get('last_run_availability_time')
+            if availability_time and isinstance(availability_time, datetime):
+                if datetime.now() - availability_time < timedelta(minutes=10):
+                    print(f"Last run for {model.name} was available less than 10 minutes ago.")
+                    print("To ensure data integrity, please wait a few more minutes before downloading.")
+                    continue
+
         model.retrieve_data(config)
         model.print_data()
 

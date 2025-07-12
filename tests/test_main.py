@@ -117,3 +117,34 @@ def test_main_function_no_new_run(mock_load_config, mock_weather_model, capsys):
     
     captured = capsys.readouterr()
     assert "No new model runs found for any model. Exiting." in captured.out
+
+@patch('src.open_meteo_cast.main.WeatherModel')
+@patch('src.open_meteo_cast.main.load_config')
+def test_main_function_wait_for_data(mock_load_config, mock_weather_model, capsys):
+    mock_load_config.return_value = {"api": {"open-meteo": {"ensemble_metadata": {"gfs025": "some_url"}, "ensemble_url": "http://dummy-ensemble-url.com"}}, "location": {"latitude": 0, "longitude": 0}}
+    
+    mock_model_instance = MagicMock()
+    mock_model_instance.check_if_new.return_value = True
+    mock_model_instance.metadata = {'last_run_availability_time': datetime.now()}
+    mock_weather_model.return_value = mock_model_instance
+
+    main()
+
+    mock_model_instance.retrieve_data.assert_not_called()
+    captured = capsys.readouterr()
+    assert "Last run for" in captured.out
+    assert "was available less than 10 minutes ago." in captured.out
+
+@patch('src.open_meteo_cast.main.WeatherModel')
+@patch('src.open_meteo_cast.main.load_config')
+def test_main_function_proceed_with_data(mock_load_config, mock_weather_model):
+    mock_load_config.return_value = {"api": {"open-meteo": {"ensemble_metadata": {"gfs025": "some_url"}, "ensemble_url": "http://dummy-ensemble-url.com"}}, "location": {"latitude": 0, "longitude": 0}}
+    
+    mock_model_instance = MagicMock()
+    mock_model_instance.check_if_new.return_value = True
+    mock_model_instance.metadata = {'last_run_availability_time': datetime(2023, 1, 1)}
+    mock_weather_model.return_value = mock_model_instance
+
+    main()
+
+    mock_model_instance.retrieve_data.assert_called_once()

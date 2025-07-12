@@ -1,6 +1,6 @@
 from unittest.mock import patch, mock_open, MagicMock
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 
 from src.open_meteo_cast.main import (
@@ -76,75 +76,87 @@ def test_retrieve_model_metadata_json_decode_error():
             assert metadata is None
             mock_print.assert_called_with("Error decoding JSON from http://dummy-url.com: Invalid JSON: line 1 column 1 (char 0)")
 
-
-
 # Test for main function
 @patch('src.open_meteo_cast.main.WeatherModel')
 @patch('src.open_meteo_cast.main.load_config')
-def test_main_function_new_run(mock_load_config, mock_weather_model, capsys):
-    mock_load_config.return_value = {"api": {"open-meteo": {"ensemble_metadata": {"gfs025": "some_url"}, "ensemble_url": "http://dummy-ensemble-url.com"}}, "location": {"latitude": 0, "longitude": 0}}
-    
-    mock_model_instance = MagicMock()
-    mock_model_instance.check_if_new.return_value = True
-    mock_weather_model.return_value = mock_model_instance
-
-    main()
-
-    mock_load_config.assert_called_once_with('resources/default_config.yaml')
-    mock_weather_model.assert_called_once_with("gfs025", mock_load_config.return_value)
-    mock_model_instance.check_if_new.assert_called_once()
-    mock_model_instance.print_metadata.assert_called_once()
-    mock_model_instance.retrieve_data.assert_called_once_with(mock_load_config.return_value)
-    mock_model_instance.print_data.assert_called_once()
-    
-    captured = capsys.readouterr()
-    assert "New model runs found" in captured.out
-
-@patch('src.open_meteo_cast.main.WeatherModel')
-@patch('src.open_meteo_cast.main.load_config')
-def test_main_function_no_new_run(mock_load_config, mock_weather_model, capsys):
-    mock_load_config.return_value = {"api": {"open-meteo": {"ensemble_metadata": {"gfs025": "some_url"}, "ensemble_url": "http://dummy-ensemble-url.com"}}, "location": {"latitude": 0, "longitude": 0}}
-    
+def test_main_no_new_runs(mock_load_config, mock_weather_model, capsys):
+    # Setup: One model, no new run
+    mock_load_config.return_value = {'models_used': ['gfs025']}
     mock_model_instance = MagicMock()
     mock_model_instance.check_if_new.return_value = False
     mock_weather_model.return_value = mock_model_instance
 
     main()
 
-    mock_load_config.assert_called_once_with('resources/default_config.yaml')
-    mock_weather_model.assert_called_once_with("gfs025", mock_load_config.return_value)
     mock_model_instance.check_if_new.assert_called_once()
-    
+    mock_model_instance.retrieve_data.assert_not_called()
     captured = capsys.readouterr()
     assert "No new model runs found for any model. Exiting." in captured.out
 
 @patch('src.open_meteo_cast.main.WeatherModel')
 @patch('src.open_meteo_cast.main.load_config')
-def test_main_function_wait_for_data(mock_load_config, mock_weather_model, capsys):
-    mock_load_config.return_value = {"api": {"open-meteo": {"ensemble_metadata": {"gfs025": "some_url"}, "ensemble_url": "http://dummy-ensemble-url.com"}}, "location": {"latitude": 0, "longitude": 0}}
-    
+def test_main_one_new_run_proceeds(mock_load_config, mock_weather_model, capsys):
+    # Setup: One model with a new run, available long enough ago
+    mock_load_config.return_value = {'models_used': ['gfs025']}
     mock_model_instance = MagicMock()
+    mock_model_instance.name = 'gfs025'
     mock_model_instance.check_if_new.return_value = True
-    mock_model_instance.metadata = {'last_run_availability_time': datetime.now()}
+    mock_model_instance.metadata = {'last_run_availability_time': datetime.now() - timedelta(minutes=15)}
     mock_weather_model.return_value = mock_model_instance
 
     main()
 
-    mock_model_instance.retrieve_data.assert_not_called()
+    mock_model_instance.check_if_new.assert_called_once()
+    mock_model_instance.retrieve_data.assert_called_once()
+    mock_model_instance.print_data.assert_called_once()
     captured = capsys.readouterr()
-    assert "Last run for" in captured.out
-    assert "was available less than 10 minutes ago." in captured.out
+    assert "Found new runs for the following models: ['gfs025']" in captured.out
 
 @patch('src.open_meteo_cast.main.WeatherModel')
 @patch('src.open_meteo_cast.main.load_config')
-def test_main_function_proceed_with_data(mock_load_config, mock_weather_model):
-    mock_load_config.return_value = {"api": {"open-meteo": {"ensemble_metadata": {"gfs025": "some_url"}, "ensemble_url": "http://dummy-ensemble-url.com"}}, "location": {"latitude": 0, "longitude": 0}}
-    
+def test_main_one_new_run_waits(mock_load_config, mock_weather_model, capsys):
+    # Setup: One model with a new run, but too recent
+    mock_load_config.return_value = {'models_used': ['gfs025']}
     mock_model_instance = MagicMock()
+    mock_model_instance.name = 'gfs025'
     mock_model_instance.check_if_new.return_value = True
-    mock_model_instance.metadata = {'last_run_availability_time': datetime(2023, 1, 1)}
+    mock_model_instance.metadata = {'last_run_availability_time': datetime.now() - timedelta(minutes=5)}
     mock_weather_model.return_value = mock_model_instance
 
     main()
 
-    mock_model_instance.retrieve_data.assert_called_once()
+    mock_model_instance.check_if_new.assert_called_once()
+    mock_model_instance.retrieve_data.assert_not_called()
+    captured = capsys.readouterr()
+    assert "Last run for gfs025 was available less than 10 minutes ago." in captured.out
+
+@patch('src.open_meteo_cast.main.WeatherModel')
+@patch('src.open_meteo_cast.main.load_config')
+def test_main_mixed_runs_processes_only_new(mock_load_config, mock_weather_model, capsys):
+    # Setup: Two models, one new, one old
+    mock_load_config.return_value = {'models_used': ['gfs025', 'ecmwf']}
+    
+    model_gfs = MagicMock()
+    model_gfs.name = 'gfs025'
+    model_gfs.check_if_new.return_value = True
+    model_gfs.metadata = {'last_run_availability_time': datetime.now() - timedelta(minutes=15)}
+
+    model_ecmwf = MagicMock()
+    model_ecmwf.name = 'ecmwf'
+    model_ecmwf.check_if_new.return_value = False
+
+    # The WeatherModel constructor will be called twice, returning these mocks in order
+    mock_weather_model.side_effect = [model_gfs, model_ecmwf]
+
+    main()
+
+    assert model_gfs.check_if_new.called
+    assert model_ecmwf.check_if_new.called
+
+    model_gfs.retrieve_data.assert_called_once()
+    model_ecmwf.retrieve_data.assert_not_called()
+
+    captured = capsys.readouterr()
+    assert "Found new runs for the following models: ['gfs025']" in captured.out
+    assert "--- Processing model: gfs025 ---" in captured.out
+    assert "--- Processing model: ecmwf ---" not in captured.out

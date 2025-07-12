@@ -25,21 +25,23 @@ def main():
     if not config:
         return
 
-    model_used = ['gfs025']
+    model_used = config.get('models_used', [])
 
-    # 2. Create wheather models instances
+    # 2. Create weather models instances
     models = [WeatherModel(name, config) for name in model_used]
 
-    # 3. Check which models have new runs
-    model_is_new_flags = [model.check_if_new() for model in models]
+    # 3. Identify models with new runs
+    new_models = [model for model in models if model.check_if_new()]
 
-    if not any(model_is_new_flags):
+    # 4. Process only the models that have new runs
+    if not new_models:
         print("No new model runs found for any model. Exiting.")
-    else:
-        print("New model runs found")
+        return
 
-    # 4. Print metadata and retrieve data if conditions are met
-    for model in models:
+    print(f"Found new runs for the following models: {[model.name for model in new_models]}")
+
+    for model in new_models:
+        print(f"\n--- Processing model: {model.name} ---")
         model.print_metadata()
 
         if model.metadata:
@@ -48,7 +50,7 @@ def main():
                 if datetime.now() - availability_time < timedelta(minutes=10):
                     print(f"Last run for {model.name} was available less than 10 minutes ago.")
                     print("To ensure data integrity, please wait a few more minutes before downloading.")
-                    continue
+                    continue # Skip to the next model in the new_models list
 
         model.retrieve_data(config)
         model.print_data()

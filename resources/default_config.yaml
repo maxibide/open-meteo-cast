@@ -16,3 +16,6 @@ api:
       ukmo_global_ensemble_20km: "https://ensemble-api.open-meteo.com/data/ukmo_global_ensemble_20km/static/meta.json"
 
     ensemble_url: "https://ensemble-api.open-meteo.com/v1/ensemble"
+
+models_used:
+  - gfs025

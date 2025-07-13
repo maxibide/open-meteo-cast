@@ -61,7 +61,7 @@ def main():
         model.print_data()
         model.calculate_statistics()
         model.print_statistics()
-        model.export_statistics_to_csv(output_dir)
+        model.export_statistics_to_csv(output_dir, config)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ location:
   latitude: -38.7183
   longitude: -62.2666
   name: "Bahía Blanca"
+  timezone: "America/Argentina/Buenos_Aires"
 
 api:
   open-meteo:

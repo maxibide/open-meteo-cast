@@ -128,7 +128,7 @@ class TestWeatherModel:
     def test_calculate_statistics(self, mock_weather_model_instance):
         model = mock_weather_model_instance
         # Mock some data for calculation
-        model.data = pd.DataFrame({
+        df = pd.DataFrame({
             'date': pd.to_datetime(['2023-01-01', '2023-01-02']),
             'member1': [10, 20],
             'member2': [12, 22],
@@ -136,8 +136,11 @@ class TestWeatherModel:
             'member4': [13, 23],
             'member5': [14, 24]
         })
+        df.set_index('date', inplace=True)
+        model.data = df
         model.calculate_statistics()
         assert isinstance(model.statistics, pd.DataFrame)
+        assert isinstance(model.statistics.index, pd.DatetimeIndex)
         assert 'p10' in model.statistics.columns
         assert 'median' in model.statistics.columns
         assert 'p90' in model.statistics.columns
@@ -155,12 +158,12 @@ class TestWeatherModel:
 
     def test_print_statistics(self, mock_weather_model_instance, capsys):
         model = mock_weather_model_instance
+        index = pd.to_datetime(['2023-01-01'])
         model.statistics = pd.DataFrame({
-            'date': pd.to_datetime(['2023-01-01']),
             'p10': [10.4],
             'median': [12.0],
             'p90': [13.6]
-        })
+        }, index=index)
         model.print_statistics()
         captured = capsys.readouterr()
         assert "Statistics for gfs025:" in captured.out

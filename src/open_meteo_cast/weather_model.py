@@ -2,6 +2,7 @@ from typing import Any, Dict, Optional
 import json
 import os
 from datetime import datetime
+import pandas as pd
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_run
 from .statistics import calculate_percentiles
 
@@ -86,7 +87,10 @@ class WeatherModel:
             config: The application configuration dictionary.
 
         """
-        self.data = retrieve_model_run(config, self.name)
+        df = retrieve_model_run(config, self.name)
+        if df is not None and 'date' in df.columns:
+            df.set_index('date', inplace=True)
+        self.data = df
 
     def print_data(self) -> None:
         """Prints the retrieved weather data and saves it to 'datos.csv'."""
@@ -115,7 +119,7 @@ class WeatherModel:
         else:
             print(f"No statistics available for {self.name}.")
 
-    def export_statistics_to_csv(self, output_dir: str = 'output') -> None:
+    def export_statistics_to_csv(self, output_dir: str = 'output', config: Dict = {}) -> None:
         """
         Exports the calculated statistics to a CSV file in the specified directory.
 
@@ -123,6 +127,7 @@ class WeatherModel:
 
         Args:
             output_dir: The directory where the CSV file will be saved. Defaults to 'output'.
+            config: The application configuration dictionary.
         """
         if self.statistics is None:
             print(f"No statistics available to export for {self.name}.")
@@ -138,8 +143,21 @@ class WeatherModel:
         filename = f"{self.name}_{timestamp_str}.csv"
         filepath = os.path.join(output_dir, filename)
 
+        # Create a copy to avoid modifying the original DataFrame
+        export_df = self.statistics.copy()
+
+        # Convert index to local timezone if it's a DatetimeIndex
+        timezone = config.get('location', {}).get('timezone')
+        if isinstance(export_df.index, pd.DatetimeIndex) and timezone:
+            export_df.index = export_df.index.tz_convert(timezone)
+
+        # Round numeric columns to one decimal place
+        for col in export_df.columns:
+            if pd.api.types.is_numeric_dtype(export_df[col]):
+                export_df[col] = export_df[col].round(1)
+        
         try:
-            self.statistics.to_csv(filepath, index=False)
+            export_df.to_csv(filepath, index=True)
             print(f"Successfully exported statistics to {filepath}")
         except IOError as e:
             print(f"Error exporting statistics to {filepath}: {e}")

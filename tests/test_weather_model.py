@@ -117,12 +117,12 @@ class TestWeatherModel:
             assert "New model run detected for gfs025." in captured.out
             assert "Error writing updated run time to last_run.json: Disk full" in captured.out
 
-    @patch('src.open_meteo_cast.weather_model.retrieve_model_run')
-    def test_retrieve_data(self, mock_retrieve_model_run, mock_weather_model_instance, mock_config):
+    @patch('src.open_meteo_cast.weather_model.retrieve_model_variable')
+    def test_retrieve_data(self, mock_retrieve_model_variable, mock_weather_model_instance, mock_config):
         model = mock_weather_model_instance
-        mock_retrieve_model_run.return_value = pd.DataFrame({'date': [], 'temperature_2m_member0': []})
+        mock_retrieve_model_variable.return_value = pd.DataFrame({'date': [], 'temperature_2m_member0': []})
         model.retrieve_data(mock_config)
-        mock_retrieve_model_run.assert_called_once_with(mock_config, "gfs025")
+        mock_retrieve_model_variable.assert_called_once_with(mock_config, "gfs025", "temperature_2m")
         assert isinstance(model.data, pd.DataFrame)
 
     def test_calculate_statistics(self, mock_weather_model_instance):
@@ -190,19 +190,19 @@ class TestWeatherModel:
         model = mock_weather_model_instance
         assert model.last_run_time == datetime(2023, 3, 15, 12, 0, 0)
 
-    @patch('src.open_meteo_cast.weather_model.retrieve_model_run')
+    @patch('src.open_meteo_cast.weather_model.retrieve_model_variable')
     @patch('pandas.DataFrame.to_csv')
-    def test_print_data(self, mock_to_csv, mock_retrieve_model_run, mock_weather_model_instance, mock_config, capsys):
+    def test_print_data(self, mock_to_csv, mock_retrieve_model_variable, mock_weather_model_instance, mock_config, capsys):
         model = mock_weather_model_instance
         mock_df = pd.DataFrame({'date': [pd.Timestamp('2023-03-15 00:00:00')], 'temperature_2m_member0': [10.0]})
-        mock_retrieve_model_run.return_value = mock_df
+        mock_retrieve_model_variable.return_value = mock_df
         model.retrieve_data(mock_config) # Populate model.data
         model.print_data()
         captured = capsys.readouterr()
         assert str(mock_df) in captured.out
         mock_to_csv.assert_called_once_with('datos.csv')
 
-    @patch('src.open_meteo_cast.weather_model.retrieve_model_run')
-    def test_get_data_none(self, mock_retrieve_model_run, mock_weather_model_instance):
+    @patch('src.open_meteo_cast.weather_model.retrieve_model_variable')
+    def test_get_data_none(self, mock_retrieve_model_variable, mock_weather_model_instance):
         model = mock_weather_model_instance
         assert model.data is None

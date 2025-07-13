@@ -2,12 +2,12 @@ from unittest.mock import patch, MagicMock
 import pandas as pd
 import numpy as np
 
-from src.open_meteo_cast.open_meteo_api import retrieve_model_run
+from src.open_meteo_cast.open_meteo_api import retrieve_model_variable
 
 @patch('openmeteo_requests.Client')
 @patch('requests_cache.CachedSession')
 @patch('retry_requests.retry')
-def test_retrieve_model_run_success(mock_retry, mock_cached_session, mock_openmeteo_client):
+def test_retrieve_model_variable_success(mock_retry, mock_cached_session, mock_openmeteo_client):
     # Mock the configuration
     config = {
         "api": {
@@ -21,6 +21,7 @@ def test_retrieve_model_run_success(mock_retry, mock_cached_session, mock_openme
         }
     }
     model_name = "gfs025"
+    variable = "temperature_2m"
 
     # Mock the Open-Meteo API response
     mock_response = MagicMock()
@@ -58,7 +59,7 @@ def test_retrieve_model_run_success(mock_retry, mock_cached_session, mock_openme
     mock_openmeteo_client.return_value.weather_api.return_value = [mock_response]
 
     # Call the function
-    df = retrieve_model_run(config, model_name)
+    df = retrieve_model_variable(config, model_name, variable)
 
     # Assertions
     
@@ -67,7 +68,7 @@ def test_retrieve_model_run_success(mock_retry, mock_cached_session, mock_openme
         params={
             "latitude": config["location"]["latitude"],
             "longitude": config["location"]["longitude"],
-            "hourly": "temperature_2m",
+            "hourly": variable,
             "models": [model_name],
             "timezone": "auto",
             "forecast_hours": 72
@@ -85,7 +86,7 @@ def test_retrieve_model_run_success(mock_retry, mock_cached_session, mock_openme
 @patch('openmeteo_requests.Client')
 @patch('requests_cache.CachedSession')
 @patch('retry_requests.retry')
-def test_retrieve_model_run_empty_response(mock_retry, mock_cached_session, mock_openmeteo_client):
+def test_retrieve_model_variable_empty_response(mock_retry, mock_cached_session, mock_openmeteo_client):
     config = {
         "api": {
             "open-meteo": {
@@ -98,9 +99,10 @@ def test_retrieve_model_run_empty_response(mock_retry, mock_cached_session, mock
         }
     }
     model_name = "gfs025"
+    variable = "temperature_2m"
 
     mock_openmeteo_client.return_value.weather_api.return_value = [] # Empty response
 
-    df = retrieve_model_run(config, model_name)
+    df = retrieve_model_variable(config, model_name, variable)
 
     assert df is None # Or handle as appropriate for empty response, e.g., empty DataFrame

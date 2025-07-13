@@ -51,17 +51,18 @@ def retrieve_model_metadata(url: str, timeout: int = 30) -> Optional[Dict[str, A
         print(f"Error decoding JSON from {url}: {e}")
         return None
 
-def retrieve_model_run(config: Dict[str, Any], model_name: str) -> pd.DataFrame:
+def retrieve_model_variable(config: Dict[str, Any], model_name: str, var_to_retrieve: str) -> pd.DataFrame:
     """Retrieves hourly temperature data for a specific weather model from the Open-Meteo API.
 
     This function sets up an Open-Meteo API client with caching and retry mechanisms,
-    then fetches hourly temperature data for a given model and location based on the
+    then fetches the hourly data for a given model, variable and location based on the
     provided configuration.
 
     Args:
         config: A dictionary containing the application configuration, including API
                 endpoints and location details.
         model_name: The name of the weather model to retrieve data for (e.g., 'gfs').
+        variable: The name of the parameter to be retrieved (e.g., 'temperature_2m')
 
     Returns:
         A pandas DataFrame containing the hourly temperature data for the specified model,
@@ -77,7 +78,7 @@ def retrieve_model_run(config: Dict[str, Any], model_name: str) -> pd.DataFrame:
     params = {
         "latitude": config['location']['latitude'],
         "longitude": config['location']['longitude'],
-        "hourly": "temperature_2m",
+        "hourly": var_to_retrieve,
         "models": [model_name],
         "timezone": "auto",
         "forecast_hours": 72

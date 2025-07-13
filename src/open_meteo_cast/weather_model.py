@@ -3,7 +3,7 @@ import json
 import os
 from datetime import datetime
 import pandas as pd
-from .open_meteo_api import retrieve_model_metadata, retrieve_model_run
+from .open_meteo_api import retrieve_model_metadata, retrieve_model_variable
 from .statistics import calculate_percentiles
 
 class WeatherModel:
@@ -87,7 +87,7 @@ class WeatherModel:
             config: The application configuration dictionary.
 
         """
-        df = retrieve_model_run(config, self.name)
+        df = retrieve_model_variable(config, self.name, "temperature_2m")
         if df is not None and 'date' in df.columns:
             df.set_index('date', inplace=True)
         self.data = df

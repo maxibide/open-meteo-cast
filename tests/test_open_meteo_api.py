@@ -1,13 +1,21 @@
+import pytest
 from unittest.mock import patch, MagicMock
 import pandas as pd
 import numpy as np
 
 from src.open_meteo_cast.open_meteo_api import retrieve_model_variable
+from openmeteo_sdk.Variable import Variable
 
+@pytest.mark.parametrize("variable,var_enum,altitude,pressure,expected_col_name", [
+    ("temperature_2m", Variable.temperature, 2, None, "temperature_2m_member0"),
+    ("dew_point_2m", Variable.dew_point, 2, None, "dew_point_2m_member0"),
+    ("pressure_msl", Variable.pressure_msl, None, None, "pressure_msl_member0"),
+    ("temperature_850hPa", Variable.temperature, None, 850, "temperature_850hPa_member0"),
+])
 @patch('openmeteo_requests.Client')
 @patch('requests_cache.CachedSession')
 @patch('retry_requests.retry')
-def test_retrieve_model_variable_success(mock_retry, mock_cached_session, mock_openmeteo_client):
+def test_retrieve_model_variable_success(mock_retry, mock_cached_session, mock_openmeteo_client, variable, var_enum, altitude, pressure, expected_col_name):
     # Mock the configuration
     config = {
         "api": {
@@ -21,7 +29,6 @@ def test_retrieve_model_variable_success(mock_retry, mock_cached_session, mock_o
         }
     }
     model_name = "gfs025"
-    variable = "temperature_2m"
 
     # Mock the Open-Meteo API response
     mock_response = MagicMock()
@@ -33,27 +40,20 @@ def test_retrieve_model_variable_success(mock_retry, mock_cached_session, mock_o
     mock_response.UtcOffsetSeconds.return_value = -18000
 
     mock_hourly = MagicMock()
-    mock_hourly.Time.return_value = 1678886400  # Example timestamp
-    mock_hourly.TimeEnd.return_value = 1678886400 + 72 * 3600 # 72 hours later
-    mock_hourly.Interval.return_value = 3600 # 1 hour interval
+    mock_hourly.Time.return_value = 1678886400
+    mock_hourly.TimeEnd.return_value = 1678886400 + 72 * 3600
+    mock_hourly.Interval.return_value = 3600
 
     # Mock hourly variables
-    mock_variable_temp_member0 = MagicMock()
-    mock_variable_temp_member0.Variable.return_value = MagicMock()
-    mock_variable_temp_member0.Variable.return_value.__eq__.return_value = True # To make it equal to Variable.temperature
-    mock_variable_temp_member0.Altitude.return_value = 2
-    mock_variable_temp_member0.EnsembleMember.return_value = 0
-    mock_variable_temp_member0.ValuesAsNumpy.return_value = np.array([10.0] * 72)
+    mock_variable = MagicMock()
+    mock_variable.Variable.return_value = var_enum
+    mock_variable.Altitude.return_value = altitude
+    mock_variable.PressureLevel.return_value = pressure
+    mock_variable.EnsembleMember.return_value = 0
+    mock_variable.ValuesAsNumpy.return_value = np.array([10.0] * 72)
 
-    mock_variable_temp_member1 = MagicMock()
-    mock_variable_temp_member1.Variable.return_value = MagicMock()
-    mock_variable_temp_member1.Variable.return_value.__eq__.return_value = True # To make it equal to Variable.temperature
-    mock_variable_temp_member1.Altitude.return_value = 2
-    mock_variable_temp_member1.EnsembleMember.return_value = 1
-    mock_variable_temp_member1.ValuesAsNumpy.return_value = np.array([10.5] * 72)
-
-    mock_hourly.Variables.side_effect = lambda i: [mock_variable_temp_member0, mock_variable_temp_member1][i]
-    mock_hourly.VariablesLength.return_value = 2 # Number of mocked variables
+    mock_hourly.Variables.side_effect = lambda i: [mock_variable][i]
+    mock_hourly.VariablesLength.return_value = 1
 
     mock_response.Hourly.return_value = mock_hourly
     mock_openmeteo_client.return_value.weather_api.return_value = [mock_response]
@@ -62,7 +62,6 @@ def test_retrieve_model_variable_success(mock_retry, mock_cached_session, mock_o
     df = retrieve_model_variable(config, model_name, variable)
 
     # Assertions
-    
     mock_openmeteo_client.return_value.weather_api.assert_called_once_with(
         config["api"]["open-meteo"]["ensemble_url"],
         params={
@@ -77,11 +76,9 @@ def test_retrieve_model_variable_success(mock_retry, mock_cached_session, mock_o
 
     assert isinstance(df, pd.DataFrame)
     assert "date" in df.columns
-    assert "temperature_2m_member0" in df.columns
-    assert "temperature_2m_member1" in df.columns
-    assert len(df) == 72 # Based on mocked data length
-    np.testing.assert_array_equal(df["temperature_2m_member0"].values, np.array([10.0] * 72))
-    np.testing.assert_array_equal(df["temperature_2m_member1"].values, np.array([10.5] * 72))
+    assert expected_col_name in df.columns
+    assert len(df) == 72
+    np.testing.assert_array_equal(df[expected_col_name].values, np.array([10.0] * 72))
 
 @patch('openmeteo_requests.Client')
 @patch('requests_cache.CachedSession')

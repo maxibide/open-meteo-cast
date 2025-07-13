@@ -21,8 +21,8 @@ class WeatherModel:
         self.name = model_name
         self.metadata_url = config.get('api', {}).get('open-meteo', {}).get('ensemble_metadata', {}).get(model_name)
         self.metadata = retrieve_model_metadata(self.metadata_url)
-        self.data = None
-        self.statistics = None
+        self.data: Dict[str, Optional[pd.DataFrame]] = {}
+        self.statistics: Dict[str, Optional[pd.DataFrame]] = {}
 
     def check_if_new(self, last_run_file: str = 'last_run.json') -> bool:
         """
@@ -87,35 +87,45 @@ class WeatherModel:
             config: The application configuration dictionary.
 
         """
-        df = retrieve_model_variable(config, self.name, "temperature_2m")
-        if df is not None and 'date' in df.columns:
-            df.set_index('date', inplace=True)
-        self.data = df
+        variables = ["temperature_2m", "dew_point_2m", "pressure_msl"]
+        for variable in variables:
+            df = retrieve_model_variable(config, self.name, variable)
+            if df is not None and 'date' in df.columns:
+                df.set_index('date', inplace=True)
+            self.data[variable] = df
 
     def print_data(self) -> None:
-        """Prints the retrieved weather data and saves it to 'datos.csv'."""
-        print(self.data)
-        if self.data is not None:
-            self.data.to_csv('datos.csv')
+        """Prints the retrieved weather data."""
+        for variable, data_df in self.data.items():
+            print(f"\nData for {variable}:")
+            if data_df is not None:
+                print(data_df)
+            else:
+                print(f"No data available for {variable}.")
 
     def calculate_statistics(self) -> None:
         """
         Calculates row-wise statistics (p10, median, p90) from the retrieved data
         and stores them in self.statistics.
         """
-        if self.data is not None:
-            self.statistics = calculate_percentiles(self.data)
-        else:
+        if not self.data:
             print(f"Error: No data available to calculate statistics for {self.name}.")
-            self.statistics = None
+            return
 
+        for variable, data_df in self.data.items():
+            if data_df is not None:
+                self.statistics[variable] = calculate_percentiles(data_df)
+            else:
+                print(f"Warning: No data for variable '{variable}' to calculate statistics.")
+            
     def print_statistics(self) -> None:
         """
         Prints the calculated statistics.
         """
         if self.statistics is not None:
-            print(f"\nStatistics for {self.name}:")
-            print(self.statistics)
+            for variable in self.statistics.keys():
+                print(f"\nStatistics for {self.name} {variable}:")
+                print(self.statistics[variable])
         else:
             print(f"No statistics available for {self.name}.")
 
@@ -129,7 +139,7 @@ class WeatherModel:
             output_dir: The directory where the CSV file will be saved. Defaults to 'output'.
             config: The application configuration dictionary.
         """
-        if self.statistics is None:
+        if not self.statistics:
             print(f"No statistics available to export for {self.name}.")
             return
 
@@ -138,29 +148,31 @@ class WeatherModel:
             print(f"Error: Cannot determine last run time for {self.name}. Cannot export statistics.")
             return
 
-        # Format timestamp for filename
         timestamp_str = last_run.strftime('%Y%m%dT%H%M%S')
-        filename = f"{self.name}_{timestamp_str}.csv"
-        filepath = os.path.join(output_dir, filename)
-
-        # Create a copy to avoid modifying the original DataFrame
-        export_df = self.statistics.copy()
-
-        # Convert index to local timezone if it's a DatetimeIndex
         timezone = config.get('location', {}).get('timezone')
-        if isinstance(export_df.index, pd.DatetimeIndex) and timezone:
-            export_df.index = export_df.index.tz_convert(timezone)
 
-        # Round numeric columns to one decimal place
-        for col in export_df.columns:
-            if pd.api.types.is_numeric_dtype(export_df[col]):
-                export_df[col] = export_df[col].round(1)
-        
-        try:
-            export_df.to_csv(filepath, index=True)
-            print(f"Successfully exported statistics to {filepath}")
-        except IOError as e:
-            print(f"Error exporting statistics to {filepath}: {e}")
+        for variable, stats_df in self.statistics.items():
+            if stats_df is None:
+                print(f"No statistics to export for variable '{variable}'.")
+                continue
+
+            filename = f"{self.name}_{timestamp_str}_{variable}.csv"
+            filepath = os.path.join(output_dir, filename)
+
+            export_df = stats_df.copy()
+
+            if isinstance(export_df.index, pd.DatetimeIndex) and timezone:
+                export_df.index = export_df.index.tz_convert(timezone)
+
+            for col in export_df.columns:
+                if pd.api.types.is_numeric_dtype(export_df[col]):
+                    export_df[col] = export_df[col].round(1)
+            
+            try:
+                export_df.to_csv(filepath, index=True)
+                print(f"Successfully exported statistics to {filepath}")
+            except IOError as e:
+                print(f"Error exporting statistics to {filepath}: {e}")
 
     @property
     def last_run_time(self) -> Optional[datetime]:

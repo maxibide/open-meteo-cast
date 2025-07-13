@@ -100,7 +100,18 @@ def retrieve_model_variable(config: Dict[str, Any], model_name: str, var_to_retr
     # Process hourly data
     hourly = response.Hourly()
     hourly_variables = list(map(lambda i: hourly.Variables(i), range(0, hourly.VariablesLength())))
-    hourly_temperature_2m = filter(lambda x: x.Variable() == Variable.temperature and x.Altitude() == 2, hourly_variables)
+    variable_filters = {
+        "temperature_2m": lambda x: x.Variable() == Variable.temperature and x.Altitude() == 2,
+        "dew_point_2m": lambda x: x.Variable() == Variable.dew_point and x.Altitude() == 2,
+        "pressure_msl": lambda x: x.Variable() == Variable.pressure_msl,
+        "temperature_850hPa": lambda x: x.Variable() == Variable.temperature and x.PressureLevel() == 850,
+    }
+
+    if var_to_retrieve not in variable_filters:
+        print(f"Variable {var_to_retrieve} not supported")
+        return
+
+    hourly_variable = filter(variable_filters[var_to_retrieve], hourly_variables)
 
     hourly_data = {"date": pd.date_range(
         start = pd.to_datetime(hourly.Time(), unit = "s", utc = True),
@@ -110,9 +121,9 @@ def retrieve_model_variable(config: Dict[str, Any], model_name: str, var_to_retr
     )}
 
     # Process all members
-    for variable in hourly_temperature_2m:
+    for variable in hourly_variable:
         member = variable.EnsembleMember()
-        hourly_data[f"temperature_2m_member{member}"] = variable.ValuesAsNumpy()
+        hourly_data[f"{var_to_retrieve}_member{member}"] = variable.ValuesAsNumpy()
 
     hourly_dataframe = pd.DataFrame(data = hourly_data)
     print(hourly_dataframe)

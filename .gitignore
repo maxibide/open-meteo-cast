@@ -207,8 +207,13 @@ marimo/_lsp/
 __marimo__/
 
 # Gemini-cli
-last_run.json
 gemini.md
 
 # Output directory for generated files
 output/
+
+# Last run registry
+last_run.json
+
+# Open-Meteo data cache
+.cache.sqlite 

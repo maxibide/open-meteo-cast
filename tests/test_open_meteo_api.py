@@ -62,13 +62,16 @@ def test_retrieve_model_variable_success(mock_retry, mock_cached_session, mock_o
     df = retrieve_model_variable(config, model_name, variable)
 
     # Assertions
+    expected_model = model_name
+    if model_name == "gfs025" and variable == "temperature_850hPa":
+        expected_model = "gfs05"
     mock_openmeteo_client.return_value.weather_api.assert_called_once_with(
         config["api"]["open-meteo"]["ensemble_url"],
         params={
             "latitude": config["location"]["latitude"],
             "longitude": config["location"]["longitude"],
             "hourly": variable,
-            "models": [model_name],
+            "models": [expected_model],
             "timezone": "auto",
             "forecast_hours": 72
         }

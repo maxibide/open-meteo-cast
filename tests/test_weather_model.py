@@ -125,18 +125,21 @@ class TestWeatherModel:
         mock_retrieve_model_variable.side_effect = [
             pd.DataFrame({'date': [], 'temperature_2m_member0': []}),
             pd.DataFrame({'date': [], 'dew_point_2m_member0': []}),
-            pd.DataFrame({'date': [], 'pressure_msl_member0': []})
+            pd.DataFrame({'date': [], 'pressure_msl_member0': []}),
+            pd.DataFrame({'date': [], 'temperature_850hPa_member0': []})
         ]
         model.retrieve_data(mock_config)
         # Check that retrieve_model_variable was called for each variable
-        assert mock_retrieve_model_variable.call_count == 3
+        assert mock_retrieve_model_variable.call_count == 4
         mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "temperature_2m")
         mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "dew_point_2m")
         mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "pressure_msl")
+        mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "temperature_850hPa")
         assert isinstance(model.data, dict)
         assert "temperature_2m" in model.data
         assert "dew_point_2m" in model.data
         assert "pressure_msl" in model.data
+        assert "temperature_850hPa" in model.data
 
     def test_calculate_statistics(self, mock_weather_model_instance):
         model = mock_weather_model_instance
@@ -225,7 +228,7 @@ class TestWeatherModel:
         model = mock_weather_model_instance
         mock_df_temp = pd.DataFrame({'date': [pd.Timestamp('2023-03-15 00:00:00')], 'temperature_2m_member0': [10.0]})
         mock_df_dew = pd.DataFrame({'date': [pd.Timestamp('2023-03-15 00:00:00')], 'dew_point_2m_member0': [5.0]})
-        mock_retrieve_model_variable.side_effect = [mock_df_temp, mock_df_dew, None] # Simulate one variable having no data
+        mock_retrieve_model_variable.side_effect = [mock_df_temp, mock_df_dew, None, None] # Simulate one variable having no data
         model.retrieve_data(mock_config)
         model.print_data()
         captured = capsys.readouterr()
@@ -234,5 +237,6 @@ class TestWeatherModel:
         assert "Data for dew_point_2m:" in captured.out
         assert str(mock_df_dew) in captured.out
         assert "No data available for pressure_msl." in captured.out
+        assert "No data available for temperature_850hPa." in captured.out
 
     

@@ -74,6 +74,9 @@ def retrieve_model_variable(config: Dict[str, Any], model_name: str, var_to_retr
     retry_session = retry(cache_session, retries = 5, backoff_factor = 0.2)
     openmeteo = openmeteo_requests.Client(session = retry_session)
 
+    if model_name == "gfs025" and var_to_retrieve == "temperature_850hPa":
+        model_name = "gfs05"
+
     url = config['api']['open-meteo']['ensemble_url']
     params = {
         "latitude": config['location']['latitude'],

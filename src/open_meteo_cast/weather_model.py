@@ -87,7 +87,7 @@ class WeatherModel:
             config: The application configuration dictionary.
 
         """
-        variables = ["temperature_2m", "dew_point_2m", "pressure_msl"]
+        variables = ["temperature_2m", "dew_point_2m", "pressure_msl", "temperature_850hPa"]
         for variable in variables:
             df = retrieve_model_variable(config, self.name, variable)
             if df is not None and 'date' in df.columns:

@@ -1,6 +1,6 @@
 import pandas as pd
 import pytest
-from src.open_meteo_cast.statistics import calculate_percentiles
+from src.open_meteo_cast.statistics import calculate_percentiles, calculate_precipitation_statistics
 
 def test_calculate_percentiles_basic():
     data = {
@@ -41,6 +41,29 @@ def test_calculate_percentiles_basic():
     assert stats_df['p10'].iloc[1] == pytest.approx(20.4)
     assert stats_df['median'].iloc[1] == pytest.approx(22.0)
     assert stats_df['p90'].iloc[1] == pytest.approx(23.6)
+
+def test_calculate_precipitation_statistics_nan_to_zero():
+    data = {
+        'member1': [0, 0, 10],
+        'member2': [0, -1, 12],
+        'member3': [0, 0, 11]
+    }
+    index = pd.to_datetime(['2023-01-01', '2023-01-02', '2023-01-03'])
+    df = pd.DataFrame(data, index=index)
+
+    stats_df = calculate_precipitation_statistics(df)
+
+    # For row 0: [0, 0, 0] -> probability = 0, conditional_average = NaN (should be 0)
+    assert stats_df['probability'].iloc[0] == pytest.approx(0.0)
+    assert stats_df['conditional_average'].iloc[0] == pytest.approx(0.0)
+
+    # For row 1: [0, -1, 0] -> probability = 0, conditional_average = NaN (should be 0)
+    assert stats_df['probability'].iloc[1] == pytest.approx(0.0)
+    assert stats_df['conditional_average'].iloc[1] == pytest.approx(0.0)
+
+    # For row 2: [10, 12, 11] -> probability = 1, conditional_average = 11
+    assert stats_df['probability'].iloc[2] == pytest.approx(1.0)
+    assert stats_df['conditional_average'].iloc[2] == pytest.approx(11.0)
 
 def test_calculate_percentiles_empty_df():
     df = pd.DataFrame(columns=['member1', 'member2'])

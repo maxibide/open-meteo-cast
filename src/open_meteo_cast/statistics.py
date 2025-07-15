@@ -51,7 +51,7 @@ def calculate_precipitation_statistics(df: pd.DataFrame) -> pd.DataFrame:
     probability = (df > 0).mean(axis=1)  # The mean of booleans (True=1, False=0) equals the proportion of members forecasting precipitation.
 
     # Calculate the conditional average of precipitation (where > 0)
-    conditional_average = df[df > 0].mean(axis=1)
+    conditional_average = df[df > 0].mean(axis=1).fillna(0)
 
     # Create a new DataFrame with the results
     statistics_df = pd.DataFrame({

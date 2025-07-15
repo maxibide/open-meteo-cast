@@ -88,7 +88,8 @@ class WeatherModel:
             config: The application configuration dictionary.
 
         """
-        variables = ["temperature_2m", "dew_point_2m", "pressure_msl", "temperature_850hPa", "precipitation"]
+        variables = ["temperature_2m", "dew_point_2m", "pressure_msl", "temperature_850hPa", "precipitation",
+                     "snowfall"]
         for variable in variables:
             df = retrieve_model_variable(config, self.name, variable)
             if df is not None and 'date' in df.columns:
@@ -118,7 +119,7 @@ class WeatherModel:
 
         for variable, data_df in self.data.items():
             if data_df is not None:
-                if variable == 'precipitation':
+                if variable == 'precipitation' or variable == 'snowfall':
                     self.statistics[variable] = calculate_precipitation_statistics(data_df)
                 else:
                     self.statistics[variable] = calculate_percentiles(data_df)

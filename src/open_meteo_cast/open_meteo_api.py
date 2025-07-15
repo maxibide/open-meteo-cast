@@ -108,7 +108,8 @@ def retrieve_model_variable(config: Dict[str, Any], model_name: str, var_to_retr
         "dew_point_2m": lambda x: x.Variable() == Variable.dew_point and x.Altitude() == 2,
         "pressure_msl": lambda x: x.Variable() == Variable.pressure_msl,
         "temperature_850hPa": lambda x: x.Variable() == Variable.temperature and x.PressureLevel() == 850,
-        "precipitation": lambda x: x.Variable() == Variable.precipitation
+        "precipitation": lambda x: x.Variable() == Variable.precipitation,
+        "snowfall": lambda x: x.Variable() == Variable.snowfall
     }
 
     if var_to_retrieve not in variable_filters:

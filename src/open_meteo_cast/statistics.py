@@ -31,3 +31,32 @@ def calculate_percentiles(df: pd.DataFrame) -> pd.DataFrame:
     }, index=df.index) # Keep the original index
 
     return statistics_df
+
+def calculate_precipitation_statistics(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculates the probability of precipitation (>0) and the conditional average
+    of precipitation for each row of a DataFrame.
+
+    Args:
+        df: The input DataFrame with a DatetimeIndex and subsequent
+            columns containing numerical data.
+
+    Returns:
+        A new DataFrame with the original index and 'probability' and 'conditional_average' columns.
+    """
+    if df.empty:
+        return pd.DataFrame(columns=['probability', 'conditional_average'])
+
+    # Calculate the probability of precipitation > 0
+    probability = (df > 0).mean(axis=1)  # The mean of booleans (True=1, False=0) equals the proportion of members forecasting precipitation.
+
+    # Calculate the conditional average of precipitation (where > 0)
+    conditional_average = df[df > 0].mean(axis=1)
+
+    # Create a new DataFrame with the results
+    statistics_df = pd.DataFrame({
+        'probability': probability,
+        'conditional_average': conditional_average
+    }, index=df.index) # Keep the original index
+
+    return statistics_df

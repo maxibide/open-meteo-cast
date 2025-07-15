@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 import pandas as pd
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_variable
-from .statistics import calculate_percentiles
+from .statistics import calculate_percentiles, calculate_precipitation_statistics
 
 class WeatherModel:
     """
@@ -87,7 +87,7 @@ class WeatherModel:
             config: The application configuration dictionary.
 
         """
-        variables = ["temperature_2m", "dew_point_2m", "pressure_msl", "temperature_850hPa"]
+        variables = ["temperature_2m", "dew_point_2m", "pressure_msl", "temperature_850hPa", "precipitation"]
         for variable in variables:
             df = retrieve_model_variable(config, self.name, variable)
             if df is not None and 'date' in df.columns:
@@ -105,8 +105,11 @@ class WeatherModel:
 
     def calculate_statistics(self) -> None:
         """
-        Calculates row-wise statistics (p10, median, p90) from the retrieved data
+        Calculates row-wise statistics from the retrieved data
         and stores them in self.statistics.
+        For the 'precipitation' variable, it calculates the probability of precipitation
+        and the conditional average. For all other variables, it calculates
+        p10, median, and p90 percentiles.
         """
         if not self.data:
             print(f"Error: No data available to calculate statistics for {self.name}.")
@@ -114,7 +117,10 @@ class WeatherModel:
 
         for variable, data_df in self.data.items():
             if data_df is not None:
-                self.statistics[variable] = calculate_percentiles(data_df)
+                if variable == 'precipitation':
+                    self.statistics[variable] = calculate_precipitation_statistics(data_df)
+                else:
+                    self.statistics[variable] = calculate_percentiles(data_df)
             else:
                 print(f"Warning: No data for variable '{variable}' to calculate statistics.")
             

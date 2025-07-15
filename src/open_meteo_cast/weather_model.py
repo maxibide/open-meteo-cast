@@ -3,6 +3,7 @@ import json
 import os
 from datetime import datetime
 import pandas as pd
+import numpy as np
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_variable
 from .statistics import calculate_percentiles, calculate_precipitation_statistics
 
@@ -172,7 +173,11 @@ class WeatherModel:
 
             for col in export_df.columns:
                 if pd.api.types.is_numeric_dtype(export_df[col]):
-                    export_df[col] = export_df[col].round(1)
+                    if variable == 'precipitation' and col == 'probability':
+                        # Round up to the nearest 0.05 for probability
+                        export_df[col] = np.ceil(export_df[col] * 20) / 20
+                    else:
+                        export_df[col] = export_df[col].round(1)
             
             try:
                 export_df.to_csv(filepath, index=True)

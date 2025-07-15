@@ -60,3 +60,28 @@ def calculate_precipitation_statistics(df: pd.DataFrame) -> pd.DataFrame:
     }, index=df.index) # Keep the original index
 
     return statistics_df
+
+def calculate_octa_probabilities(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculates the probability for each cloud cover octa (0-8) for each row.
+
+    Args:
+        df: The input DataFrame with a DatetimeIndex and subsequent
+            columns containing cloud cover data in octas (0-8).
+
+    Returns:
+        A new DataFrame with the original index and columns for the
+        probability of each octa ('octa_0_prob', 'octa_1_prob', etc.).
+    """
+    if df.empty:
+        return pd.DataFrame()
+
+    # Calculate the probability for each octa value (0-8)
+    probabilities = {}
+    for octa in range(9):
+        probabilities[f'octa_{octa}_prob'] = (df == octa).mean(axis=1)
+
+    # Create a new DataFrame with the results
+    statistics_df = pd.DataFrame(probabilities, index=df.index)
+
+    return statistics_df

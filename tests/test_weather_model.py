@@ -128,17 +128,19 @@ class TestWeatherModel:
             pd.DataFrame({'date': [], 'pressure_msl_member0': []}),
             pd.DataFrame({'date': [], 'temperature_850hPa_member0': []}),
             pd.DataFrame({'date': [], 'precipitation_member0': []}),
-            pd.DataFrame({'date': [], 'snowfall_member0': []})
+            pd.DataFrame({'date': [], 'snowfall_member0': []}),
+            pd.DataFrame({'date': [], 'cloud_cover_member0': []})
         ]
         model.retrieve_data(mock_config)
         # Check that retrieve_model_variable was called for each variable
-        assert mock_retrieve_model_variable.call_count == 6
+        assert mock_retrieve_model_variable.call_count == 7
         mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "temperature_2m")
         mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "dew_point_2m")
         mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "pressure_msl")
         mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "temperature_850hPa")
         mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "precipitation")
         mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "snowfall")
+        mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "cloud_cover")
         assert isinstance(model.data, dict)
         assert "temperature_2m" in model.data
         assert "dew_point_2m" in model.data
@@ -146,6 +148,7 @@ class TestWeatherModel:
         assert "temperature_850hPa" in model.data
         assert "precipitation" in model.data
         assert "snowfall" in model.data
+        assert "cloud_cover" in model.data
 
     def test_calculate_statistics(self, mock_weather_model_instance):
         model = mock_weather_model_instance
@@ -160,15 +163,25 @@ class TestWeatherModel:
             'member1': [5, 15],
             'member2': [7, 17]
         }).set_index('date')
-        model.data = {"temperature_2m": df_temp, "dew_point_2m": df_dew}
+        df_cloud = pd.DataFrame({
+            'date': pd.to_datetime(['2023-01-01', '2023-01-02']),
+            'member1': [50, 100],
+            'member2': [60, 0]
+        }).set_index('date')
+        model.data = {"temperature_2m": df_temp, "dew_point_2m": df_dew, "cloud_cover": df_cloud}
         model.calculate_statistics()
         assert isinstance(model.statistics, dict)
         assert "temperature_2m" in model.statistics
         assert "dew_point_2m" in model.statistics
+        assert "cloud_cover" in model.statistics
         assert isinstance(model.statistics["temperature_2m"], pd.DataFrame)
         assert isinstance(model.statistics["dew_point_2m"], pd.DataFrame)
+        assert isinstance(model.statistics["cloud_cover"], pd.DataFrame)
         assert 'p10' in model.statistics["temperature_2m"].columns
         assert model.statistics["temperature_2m"]['p10'].iloc[0] == pytest.approx(10.2)
+        assert 'octa_6_prob' in model.statistics["cloud_cover"].columns
+        assert model.statistics["cloud_cover"]['octa_6_prob'].iloc[0] == pytest.approx(0.0) # 50% and 60% -> 4 and 5 octas. 0.0 for 6
+        assert model.statistics["cloud_cover"]['octa_0_prob'].iloc[1] == pytest.approx(0.5) # 100% and 0% -> 8 and 0 octas. 0.5 for 8 and 0.5 for 0
 
     def test_calculate_statistics_no_data(self, mock_weather_model_instance, capsys):
         model = mock_weather_model_instance
@@ -236,7 +249,8 @@ class TestWeatherModel:
         mock_df_dew = pd.DataFrame({'date': [pd.Timestamp('2023-03-15 00:00:00')], 'dew_point_2m_member0': [5.0]})
         mock_df_precip = pd.DataFrame({'date': [pd.Timestamp('2023-03-15 00:00:00')], 'precipitation_member0': [1.0]})
         mock_df_snowfall = pd.DataFrame({'date': [pd.Timestamp('2023-03-15 00:00:00')], 'snowfall_member0': [2.0]})
-        mock_retrieve_model_variable.side_effect = [mock_df_temp, mock_df_dew, None, None, mock_df_precip, mock_df_snowfall] # Simulate one variable having no data
+        mock_df_cloud_cover = pd.DataFrame({'date': [pd.Timestamp('2023-03-15 00:00:00')], 'cloud_cover_member0': [50.0]})
+        mock_retrieve_model_variable.side_effect = [mock_df_temp, mock_df_dew, None, None, mock_df_precip, mock_df_snowfall, mock_df_cloud_cover] # Simulate one variable having no data
         model.retrieve_data(mock_config)
         model.print_data()
         captured = capsys.readouterr()
@@ -250,5 +264,7 @@ class TestWeatherModel:
         assert str(mock_df_precip) in captured.out
         assert "Data for snowfall:" in captured.out
         assert str(mock_df_snowfall) in captured.out
+        assert "Data for cloud_cover:" in captured.out
+        assert str(mock_df_cloud_cover) in captured.out
 
     

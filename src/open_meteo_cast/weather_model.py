@@ -5,7 +5,7 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_variable
-from .statistics import calculate_percentiles, calculate_precipitation_statistics
+from .statistics import calculate_percentiles, calculate_precipitation_statistics, calculate_octa_probabilities
 
 class WeatherModel:
     """
@@ -89,7 +89,7 @@ class WeatherModel:
 
         """
         variables = ["temperature_2m", "dew_point_2m", "pressure_msl", "temperature_850hPa", "precipitation",
-                     "snowfall"]
+                     "snowfall", "cloud_cover"]
         for variable in variables:
             df = retrieve_model_variable(config, self.name, variable)
             if df is not None and 'date' in df.columns:
@@ -121,6 +121,12 @@ class WeatherModel:
             if data_df is not None:
                 if variable == 'precipitation' or variable == 'snowfall':
                     self.statistics[variable] = calculate_precipitation_statistics(data_df)
+                elif variable == 'cloud_cover':
+                    # Convert cloud cover from percentage to octas
+                    octas_df = (data_df / 100 * 8).round().astype(int)
+                    percentiles_df = calculate_percentiles(octas_df)
+                    octa_probs_df = calculate_octa_probabilities(octas_df)
+                    self.statistics[variable] = pd.concat([percentiles_df, octa_probs_df], axis=1)
                 else:
                     self.statistics[variable] = calculate_percentiles(data_df)
             else:
@@ -189,9 +195,12 @@ class WeatherModel:
 
         for col in export_df.columns:
             if pd.api.types.is_numeric_dtype(export_df[col]):
-                # Extract variable from column name
-                variable = col.split('_')[0]
-                if variable == 'precipitation' and col.endswith('_probability'):
+                if col.startswith('cloud_cover'):
+                    if 'prob' in col:
+                        export_df[col] = export_df[col].round(2)
+                    else:
+                        export_df[col] = export_df[col].round(0).astype(int)
+                elif col.startswith('precipitation') and col.endswith('_probability'):
                     # Round up to the nearest 0.05 for probability
                     export_df[col] = np.ceil(export_df[col] * 20) / 20
                 else:

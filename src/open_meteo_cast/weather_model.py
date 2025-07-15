@@ -139,9 +139,10 @@ class WeatherModel:
 
     def export_statistics_to_csv(self, output_dir: str = 'output', config: Dict = {}) -> None:
         """
-        Exports the calculated statistics to a CSV file in the specified directory.
+        Exports the calculated statistics to a single CSV file for the model.
 
         The filename is generated based on the model name and the last run initialization time.
+        Each variable's statistics are prefixed with the variable name.
 
         Args:
             output_dir: The directory where the CSV file will be saved. Defaults to 'output'.
@@ -159,32 +160,48 @@ class WeatherModel:
         timestamp_str = last_run.strftime('%Y%m%dT%H%M%S')
         timezone = config.get('location', {}).get('timezone')
 
+        all_stats_df = pd.DataFrame()
+
         for variable, stats_df in self.statistics.items():
             if stats_df is None:
                 print(f"No statistics to export for variable '{variable}'.")
                 continue
 
-            filename = f"{self.name}_{timestamp_str}_{variable}.csv"
-            filepath = os.path.join(output_dir, filename)
-
-            export_df = stats_df.copy()
-
-            if isinstance(export_df.index, pd.DatetimeIndex) and timezone:
-                export_df.index = export_df.index.tz_convert(timezone)
-
-            for col in export_df.columns:
-                if pd.api.types.is_numeric_dtype(export_df[col]):
-                    if variable == 'precipitation' and col == 'probability':
-                        # Round up to the nearest 0.05 for probability
-                        export_df[col] = np.ceil(export_df[col] * 20) / 20
-                    else:
-                        export_df[col] = export_df[col].round(1)
+            # Add prefix to columns to identify the variable
+            prefixed_stats_df = stats_df.add_prefix(f"{variable}_")
             
-            try:
-                export_df.to_csv(filepath, index=True)
-                print(f"Successfully exported statistics to {filepath}")
-            except IOError as e:
-                print(f"Error exporting statistics to {filepath}: {e}")
+            if all_stats_df.empty:
+                all_stats_df = prefixed_stats_df
+            else:
+                all_stats_df = all_stats_df.join(prefixed_stats_df, how='outer')
+
+        if all_stats_df.empty:
+            print(f"No statistics to export for model {self.name}.")
+            return
+
+        filename = f"{self.name}_{timestamp_str}.csv"
+        filepath = os.path.join(output_dir, filename)
+
+        export_df = all_stats_df.copy()
+
+        if isinstance(export_df.index, pd.DatetimeIndex) and timezone:
+            export_df.index = export_df.index.tz_convert(timezone)
+
+        for col in export_df.columns:
+            if pd.api.types.is_numeric_dtype(export_df[col]):
+                # Extract variable from column name
+                variable = col.split('_')[0]
+                if variable == 'precipitation' and col.endswith('_probability'):
+                    # Round up to the nearest 0.05 for probability
+                    export_df[col] = np.ceil(export_df[col] * 20) / 20
+                else:
+                    export_df[col] = export_df[col].round(1)
+        
+        try:
+            export_df.to_csv(filepath, index=True)
+            print(f"Successfully exported statistics to {filepath}")
+        except IOError as e:
+            print(f"Error exporting statistics to {filepath}: {e}")
 
     @property
     def last_run_time(self) -> Optional[datetime]:

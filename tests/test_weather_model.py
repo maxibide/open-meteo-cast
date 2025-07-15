@@ -198,24 +198,24 @@ class TestWeatherModel:
         captured = capsys.readouterr()
         assert "No statistics available for gfs025." in captured.out
 
-    @patch('pandas.DataFrame.to_csv')
-    def test_export_statistics_to_csv(self, mock_to_csv, mock_weather_model_instance, mock_config):
+    def test_export_statistics_to_csv(self, mock_weather_model_instance, mock_config, tmpdir):
         model = mock_weather_model_instance
         index = pd.to_datetime(['2023-01-01'])
         model.statistics = {
             "temperature_2m": pd.DataFrame({'p10': [10.4]}, index=index),
             "dew_point_2m": pd.DataFrame({'p10': [5.2]}, index=index)
         }
-        model.export_statistics_to_csv(config=mock_config)
-        assert mock_to_csv.call_count == 2
-        mock_to_csv.assert_any_call(
-            os.path.join('output', 'gfs025_20230315T120000_temperature_2m.csv'), 
-            index=True
-        )
-        mock_to_csv.assert_any_call(
-            os.path.join('output', 'gfs025_20230315T120000_dew_point_2m.csv'), 
-            index=True
-        )
+        output_dir = str(tmpdir)
+        model.export_statistics_to_csv(output_dir=output_dir, config=mock_config)
+        
+        expected_filename = os.path.join(output_dir, 'gfs025_20230315T120000.csv')
+        assert os.path.exists(expected_filename)
+        
+        df = pd.read_csv(expected_filename)
+        assert 'temperature_2m_p10' in df.columns
+        assert 'dew_point_2m_p10' in df.columns
+        assert df['temperature_2m_p10'][0] == 10.4
+        assert df['dew_point_2m_p10'][0] == 5.2
 
     def test_get_name(self, mock_weather_model_instance):
         model = mock_weather_model_instance

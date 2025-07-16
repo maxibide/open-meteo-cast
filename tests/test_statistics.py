@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
-from src.open_meteo_cast.statistics import calculate_percentiles, calculate_precipitation_statistics, calculate_octa_probabilities
+import numpy as np
+from src.open_meteo_cast.statistics import calculate_percentiles, calculate_precipitation_statistics, calculate_octa_probabilities, calculate_wind_direction_probabilities
 
 def test_calculate_percentiles_basic():
     data = {
@@ -140,3 +141,47 @@ def test_calculate_octa_probabilities_single_data_column():
     for i in range(9):
         if i != 3:
             assert stats_df[f'octa_{i}_prob'].iloc[0] == pytest.approx(0.0)
+
+def test_calculate_wind_direction_probabilities_basic():
+    data = {
+        'member1': [0, 45, 90, 135, 180, 225, 270, 315],
+        'member2': [360, 44, 89, 134, 179, 224, 269, 314],
+        'member3': [22.4, 67.4, 112.4, 157.4, 202.4, 247.4, 292.4, 337.4],
+        'member4': [22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5],
+        'member5': [337.5, 22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5]
+    }
+    index = pd.to_datetime([f'2023-01-01 0{i}:00:00' for i in range(8)])
+    df = pd.DataFrame(data, index=index)
+
+    stats_df = calculate_wind_direction_probabilities(df)
+
+    assert isinstance(stats_df.index, pd.DatetimeIndex)
+    assert 'N_prob' in stats_df.columns
+    assert 'NW_prob' in stats_df.columns
+    assert len(stats_df) == 8
+
+    # Test probabilities for each octant
+    assert stats_df['N_prob'].iloc[0] == pytest.approx(0.8)  # 4/5 members show North
+    assert stats_df['NE_prob'].iloc[1] == pytest.approx(0.8) # 4/5 members show North-East
+    assert stats_df['E_prob'].iloc[2] == pytest.approx(0.8)
+    assert stats_df['SE_prob'].iloc[3] == pytest.approx(0.8)
+    assert stats_df['S_prob'].iloc[4] == pytest.approx(0.8)
+    assert stats_df['SW_prob'].iloc[5] == pytest.approx(0.8)
+    assert stats_df['W_prob'].iloc[6] == pytest.approx(0.8)
+    assert stats_df['NW_prob'].iloc[7] == pytest.approx(0.8)
+
+def test_calculate_wind_direction_probabilities_empty_df():
+    df = pd.DataFrame(columns=[f'member{i}' for i in range(5)])
+    stats_df = calculate_wind_direction_probabilities(df)
+    assert stats_df.empty
+
+def test_calculate_wind_direction_probabilities_single_data_column():
+    data = {
+        'member1': [190] # South
+    }
+    index = pd.to_datetime(['2023-01-01'])
+    df = pd.DataFrame(data, index=index)
+    stats_df = calculate_wind_direction_probabilities(df)
+    assert stats_df['S_prob'].iloc[0] == pytest.approx(1.0)
+    for octant in ['N', 'NE', 'E', 'SE', 'SW', 'W', 'NW']:
+        assert stats_df[f'{octant}_prob'].iloc[0] == pytest.approx(0.0)

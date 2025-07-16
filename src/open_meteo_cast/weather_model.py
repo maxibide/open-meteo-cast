@@ -5,7 +5,7 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_variable
-from .statistics import calculate_percentiles, calculate_precipitation_statistics, calculate_octa_probabilities
+from .statistics import calculate_percentiles, calculate_precipitation_statistics, calculate_octa_probabilities, calculate_wind_direction_probabilities
 
 class WeatherModel:
     """
@@ -89,7 +89,7 @@ class WeatherModel:
 
         """
         variables = ["temperature_2m", "dew_point_2m", "pressure_msl", "temperature_850hPa", "precipitation",
-                     "snowfall", "cloud_cover", "wind_speed_10m", "wind_gusts_10m"]
+                     "snowfall", "cloud_cover", "wind_speed_10m", "wind_gusts_10m", "wind_direction_10m"]
         for variable in variables:
             df = retrieve_model_variable(config, self.name, variable)
             if df is not None and 'date' in df.columns:
@@ -127,6 +127,8 @@ class WeatherModel:
                     percentiles_df = calculate_percentiles(octas_df)
                     octa_probs_df = calculate_octa_probabilities(octas_df)
                     self.statistics[variable] = pd.concat([percentiles_df, octa_probs_df], axis=1)
+                elif variable == 'wind_direction_10m':
+                    self.statistics[variable] = calculate_wind_direction_probabilities(data_df)
                 else:
                     self.statistics[variable] = calculate_percentiles(data_df)
             else:
@@ -200,6 +202,8 @@ class WeatherModel:
                         export_df[col] = export_df[col].round(2)
                     else:
                         export_df[col] = export_df[col].round(0).astype(int)
+                elif 'prob' in col:
+                    export_df[col] = export_df[col].round(2)
                 elif col.startswith('precipitation') and col.endswith('_probability'):
                     # Round up to the nearest 0.05 for probability
                     export_df[col] = np.ceil(export_df[col] * 20) / 20

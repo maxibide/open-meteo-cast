@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 def calculate_percentiles(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -84,4 +85,32 @@ def calculate_octa_probabilities(df: pd.DataFrame) -> pd.DataFrame:
     # Create a new DataFrame with the results
     statistics_df = pd.DataFrame(probabilities, index=df.index)
 
+    return statistics_df
+
+def calculate_wind_direction_probabilities(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculates the probability of wind direction falling into one of 8 octants.
+
+    Args:
+        df: The input DataFrame with a DatetimeIndex and subsequent
+            columns containing wind direction data in degrees (0-360).
+
+    Returns:
+        A new DataFrame with the original index and columns for the
+        probability of each octant ('N_prob', 'NE_prob', etc.).
+    """
+    if df.empty:
+        return pd.DataFrame()
+
+    # Map degrees to octants: 0:N, 1:NE, 2:E, 3:SE, 4:S, 5:SW, 6:W, 7:NW
+    octants_numeric = np.floor(((df + 22.5) % 360) / 45).astype(int)
+    
+    octant_labels = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+    
+    probabilities = {}
+    for i, label in enumerate(octant_labels):
+        probabilities[f'{label}_prob'] = (octants_numeric == i).mean(axis=1)
+        
+    statistics_df = pd.DataFrame(probabilities, index=df.index)
+    
     return statistics_df

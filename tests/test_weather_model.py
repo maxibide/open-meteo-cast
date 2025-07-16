@@ -132,11 +132,12 @@ class TestWeatherModel:
             pd.DataFrame({'date': [], 'cloud_cover_member0': []}),
             pd.DataFrame({'date': [], 'wind_speed_10m_member0': []}),
             pd.DataFrame({'date': [], 'wind_gusts_10m_member0': []}),
-            pd.DataFrame({'date': [], 'wind_direction_10m_member0': []})
+            pd.DataFrame({'date': [], 'wind_direction_10m_member0': []}),
+            pd.DataFrame({'date': [], 'cape_member0': []})
         ]
         model.retrieve_data(mock_config)
         # Check that retrieve_model_variable was called for each variable
-        assert mock_retrieve_model_variable.call_count == 10
+        assert mock_retrieve_model_variable.call_count == 11
         mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "temperature_2m")
         mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "dew_point_2m")
         mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "pressure_msl")
@@ -147,6 +148,7 @@ class TestWeatherModel:
         mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "wind_speed_10m")
         mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "wind_gusts_10m")
         mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "wind_direction_10m")
+        mock_retrieve_model_variable.assert_any_call(mock_config, "gfs025", "cape")
         assert isinstance(model.data, dict)
         assert "temperature_2m" in model.data
         assert "dew_point_2m" in model.data
@@ -158,6 +160,7 @@ class TestWeatherModel:
         assert "wind_speed_10m" in model.data
         assert "wind_gusts_10m" in model.data
         assert "wind_direction_10m" in model.data
+        assert "cape" in model.data
 
     def test_calculate_statistics(self, mock_weather_model_instance):
         model = mock_weather_model_instance
@@ -262,7 +265,8 @@ class TestWeatherModel:
         mock_df_wind_speed = pd.DataFrame({'date': [pd.Timestamp('2023-03-15 00:00:00')], 'wind_speed_10m_member0': [15.0]})
         mock_df_wind_gusts = pd.DataFrame({'date': [pd.Timestamp('2023-03-15 00:00:00')], 'wind_gusts_10m_member0': [25.0]})
         mock_df_wind_direction = pd.DataFrame({'date': [pd.Timestamp('2023-03-15 00:00:00')], 'wind_direction_10m_member0': [180.0]})
-        mock_retrieve_model_variable.side_effect = [mock_df_temp, mock_df_dew, None, None, mock_df_precip, mock_df_snowfall, mock_df_cloud_cover, mock_df_wind_speed, mock_df_wind_gusts, mock_df_wind_direction] # Simulate one variable having no data
+        mock_df_cape = pd.DataFrame({'date': [pd.Timestamp('2023-03-15 00:00:00')], 'cape_member0': [100.0]})
+        mock_retrieve_model_variable.side_effect = [mock_df_temp, mock_df_dew, None, None, mock_df_precip, mock_df_snowfall, mock_df_cloud_cover, mock_df_wind_speed, mock_df_wind_gusts, mock_df_wind_direction, mock_df_cape] # Simulate one variable having no data
         model.retrieve_data(mock_config)
         model.print_data()
         captured = capsys.readouterr()
@@ -284,5 +288,7 @@ class TestWeatherModel:
         assert str(mock_df_wind_gusts) in captured.out
         assert "Data for wind_direction_10m:" in captured.out
         assert str(mock_df_wind_direction) in captured.out
+        assert "Data for cape:" in captured.out
+        assert str(mock_df_cape) in captured.out
 
     

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "open-meteo-cast"
-version = "0.0.7"
+version = "0.0.8"
 description = "Automated weather forecasting system using ensemble statistics from global models via Open-Meteo"
 authors = ["Maximiliano Bidegain"]
 

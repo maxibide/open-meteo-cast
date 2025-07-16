@@ -89,7 +89,7 @@ class WeatherModel:
 
         """
         variables = ["temperature_2m", "dew_point_2m", "pressure_msl", "temperature_850hPa", "precipitation",
-                     "snowfall", "cloud_cover"]
+                     "snowfall", "cloud_cover", "wind_speed_10m", "wind_gusts_10m"]
         for variable in variables:
             df = retrieve_model_variable(config, self.name, variable)
             if df is not None and 'date' in df.columns:

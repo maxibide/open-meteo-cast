@@ -201,7 +201,7 @@ class WeatherModel:
                     if 'prob' in col:
                         export_df[col] = export_df[col].round(2)
                     else:
-                        export_df[col] = export_df[col].round(0).astype(int)
+                        export_df[col] = export_df[col].round(0).astype('Int64')
                 elif 'prob' in col:
                     export_df[col] = export_df[col].round(2)
                 elif col.startswith('precipitation') and col.endswith('_probability'):

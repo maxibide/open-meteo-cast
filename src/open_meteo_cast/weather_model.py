@@ -7,6 +7,8 @@ import numpy as np
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_variable
 from .statistics import calculate_percentiles, calculate_precipitation_statistics, calculate_octa_probabilities, calculate_wind_direction_probabilities
 
+from .formatting import format_statistics_dataframe
+
 class WeatherModel:
     """
     Represents a weather model, handling metadata checks, data loading, and processing.
@@ -191,25 +193,10 @@ class WeatherModel:
         filename = f"{self.name}_{timestamp_str}.csv"
         filepath = os.path.join(output_dir, filename)
 
-        export_df = all_stats_df.copy()
+        export_df = format_statistics_dataframe(all_stats_df)
 
         if isinstance(export_df.index, pd.DatetimeIndex) and timezone:
             export_df.index = export_df.index.tz_convert(timezone)
-
-        for col in export_df.columns:
-            if pd.api.types.is_numeric_dtype(export_df[col]):
-                if col.startswith('cloud_cover'):
-                    if 'prob' in col:
-                        export_df[col] = export_df[col].round(2)
-                    else:
-                        export_df[col] = export_df[col].round(0).astype('Int64')
-                elif 'prob' in col:
-                    export_df[col] = export_df[col].round(2)
-                elif col.startswith('precipitation') and col.endswith('_probability'):
-                    # Round up to the nearest 0.05 for probability
-                    export_df[col] = np.ceil(export_df[col] * 20) / 20
-                else:
-                    export_df[col] = export_df[col].round(1)
         
         try:
             export_df.to_csv(filepath, index=True)

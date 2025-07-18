@@ -3,6 +3,7 @@ import yaml
 import os
 from datetime import datetime, timedelta
 from .weather_model import WeatherModel
+from .ensemble import Ensemble
 
 def load_config(config_path: str) -> Dict[str, Any]:
     """Load configuration from a YAML archive"""
@@ -62,6 +63,12 @@ def main():
         model.calculate_statistics()
         model.print_statistics()
         model.export_statistics_to_csv(output_dir, config)
+
+    # 5. Create and export ensemble
+    if new_models:
+        print("\n--- Creating and exporting ensemble ---")
+        ensemble = Ensemble(new_models)
+        ensemble.to_csv(output_dir, config)
 
 
 if __name__ == "__main__":

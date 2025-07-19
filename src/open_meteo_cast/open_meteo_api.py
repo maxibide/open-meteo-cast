@@ -114,7 +114,8 @@ def retrieve_model_variable(config: Dict[str, Any], model_name: str, var_to_retr
         "wind_speed_10m": lambda x: x.Variable() == Variable.wind_speed and x.Altitude() == 10,
         "wind_gusts_10m": lambda x: x.Variable() == Variable.wind_gusts and x.Altitude() == 10,
         "wind_direction_10m": lambda x: x.Variable() == Variable.wind_direction and x.Altitude() == 10,
-        "cape": lambda x: x.Variable() == Variable.cape
+        "cape": lambda x: x.Variable() == Variable.cape,
+        "weather_code": lambda x: x.Variable() == Variable.weather_code
     }
 
     if var_to_retrieve not in variable_filters:

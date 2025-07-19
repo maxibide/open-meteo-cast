@@ -1,6 +1,5 @@
 import pandas as pd
 import pytest
-import numpy as np
 from src.open_meteo_cast.statistics import calculate_percentiles, calculate_precipitation_statistics, calculate_octa_probabilities, calculate_wind_direction_probabilities, calculate_weather_code_probabilities
 
 def test_calculate_percentiles_basic():

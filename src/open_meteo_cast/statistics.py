@@ -117,7 +117,12 @@ def calculate_wind_direction_probabilities(df: pd.DataFrame) -> pd.DataFrame:
 
 def calculate_weather_code_probabilities(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Calculates the probability for each weather code (0-99) for each row.
+    Calculates the probability of specific weather conditions based on weather codes.
+
+    The conditions are:
+    - Fog: [10, 11, 12, 28, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]
+    - Storm: [13, 17, 29, 95, 96, 98]
+    - Severe Storm: [18, 19, 97, 99]
 
     Args:
         df: The input DataFrame with a DatetimeIndex and subsequent
@@ -125,16 +130,20 @@ def calculate_weather_code_probabilities(df: pd.DataFrame) -> pd.DataFrame:
 
     Returns:
         A new DataFrame with the original index and columns for the
-        probability of each weather code ('wc_prob_00', 'wc_prob_01', etc.).
+        probability of each weather condition ('fog_prob', 'storm_prob', 'severe_storm_prob').
     """
     if df.empty:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=['fog_prob', 'storm_prob', 'severe_storm_prob'])
 
-    # Calculate the probability for each integer weather code value (0-99)
-    probabilities = {}
-    for code in range(100):
-        column_name = f"wc_prob_{code:02d}"
-        probabilities[column_name] = (df == code).mean(axis=1)
+    fog_codes = [10, 11, 12, 28, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]
+    storm_codes = [13, 17, 29, 95, 96, 98]
+    severe_storm_codes = [18, 19, 97, 99]
+
+    probabilities = {
+        'fog_prob': df.isin(fog_codes).mean(axis=1),
+        'storm_prob': df.isin(storm_codes).mean(axis=1),
+        'severe_storm_prob': df.isin(severe_storm_codes).mean(axis=1)
+    }
 
     # Create a new DataFrame with the results
     statistics_df = pd.DataFrame(probabilities, index=df.index)

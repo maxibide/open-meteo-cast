@@ -188,34 +188,40 @@ def test_calculate_wind_direction_probabilities_single_data_column():
 
 def test_calculate_weather_code_probabilities_basic():
     data = {
-        'member1': [3, 50],
-        'member2': [3, 51],
-        'member3': [3, 51],
-        'member4': [3, 99]
+        'member1': [10, 13, 18],  # Fog, Storm, Severe Storm
+        'member2': [11, 17, 19],  # Fog, Storm, Severe Storm
+        'member3': [45, 29, 97],  # Fog, Storm, Severe Storm
+        'member4': [0, 95, 99],   # None, Storm, Severe Storm
+        'member5': [1, 2, 3]      # None, None, None
     }
-    index = pd.to_datetime(['2023-01-01', '2023-01-02'])
+    index = pd.to_datetime(['2023-01-01', '2023-01-02', '2023-01-03'])
     df = pd.DataFrame(data, index=index)
 
     stats_df = calculate_weather_code_probabilities(df)
 
     assert isinstance(stats_df.index, pd.DatetimeIndex)
-    assert len(stats_df.columns) == 100
-    assert 'wc_prob_00' in stats_df.columns
-    assert 'wc_prob_99' in stats_df.columns
+    assert 'fog_prob' in stats_df.columns
+    assert 'storm_prob' in stats_df.columns
+    assert 'severe_storm_prob' in stats_df.columns
+    assert len(stats_df.columns) == 3
 
-    # For row 0: [3, 3, 3, 3] -> probability of code 3 is 1.0
-    assert stats_df['wc_prob_03'].iloc[0] == pytest.approx(1.0)
-    assert stats_df['wc_prob_50'].iloc[0] == pytest.approx(0.0)
+    # For row 0: [10, 11, 45, 0, 1] -> 3/5 fog
+    assert stats_df['fog_prob'].iloc[0] == pytest.approx(0.6)
+    assert stats_df['storm_prob'].iloc[0] == pytest.approx(0.0)
+    assert stats_df['severe_storm_prob'].iloc[0] == pytest.approx(0.0)
 
-    # For row 1: [50, 51, 51, 99]
-    assert stats_df['wc_prob_50'].iloc[1] == pytest.approx(0.25)
-    assert stats_df['wc_prob_51'].iloc[1] == pytest.approx(0.50)
-    assert stats_df['wc_prob_99'].iloc[1] == pytest.approx(0.25)
-    
-    # Check that other probabilities are zero for the second row
-    all_codes = set(range(100))
-    expected_codes_in_row1 = {3, 50, 51, 99}
-    for code in all_codes - expected_codes_in_row1:
-        col_name = f"wc_prob_{code:02d}"
-        if col_name in stats_df.columns:
-            assert stats_df[col_name].iloc[1] == pytest.approx(0.0)
+    # For row 1: [13, 17, 29, 95, 2] -> 4/5 storm
+    assert stats_df['fog_prob'].iloc[1] == pytest.approx(0.0)
+    assert stats_df['storm_prob'].iloc[1] == pytest.approx(0.8)
+    assert stats_df['severe_storm_prob'].iloc[1] == pytest.approx(0.0)
+
+    # For row 2: [18, 19, 97, 99, 3] -> 4/5 severe storm
+    assert stats_df['fog_prob'].iloc[2] == pytest.approx(0.0)
+    assert stats_df['storm_prob'].iloc[2] == pytest.approx(0.0)
+    assert stats_df['severe_storm_prob'].iloc[2] == pytest.approx(0.8)
+
+def test_calculate_weather_code_probabilities_empty_df():
+    df = pd.DataFrame(columns=[f'member{i}' for i in range(5)])
+    stats_df = calculate_weather_code_probabilities(df)
+    assert stats_df.empty
+    assert list(stats_df.columns) == ['fog_prob', 'storm_prob', 'severe_storm_prob']

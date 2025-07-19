@@ -114,3 +114,29 @@ def calculate_wind_direction_probabilities(df: pd.DataFrame) -> pd.DataFrame:
     statistics_df = pd.DataFrame(probabilities, index=df.index)
     
     return statistics_df
+
+def calculate_weather_code_probabilities(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculates the probability for each weather code (0-99) for each row.
+
+    Args:
+        df: The input DataFrame with a DatetimeIndex and subsequent
+            columns containing weather code data as integers (0-99).
+
+    Returns:
+        A new DataFrame with the original index and columns for the
+        probability of each weather code ('wc_prob_00', 'wc_prob_01', etc.).
+    """
+    if df.empty:
+        return pd.DataFrame()
+
+    # Calculate the probability for each integer weather code value (0-99)
+    probabilities = {}
+    for code in range(100):
+        column_name = f"wc_prob_{code:02d}"
+        probabilities[column_name] = (df == code).mean(axis=1)
+
+    # Create a new DataFrame with the results
+    statistics_df = pd.DataFrame(probabilities, index=df.index)
+
+    return statistics_df

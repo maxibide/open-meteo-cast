@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 import numpy as np
-from src.open_meteo_cast.statistics import calculate_percentiles, calculate_precipitation_statistics, calculate_octa_probabilities, calculate_wind_direction_probabilities
+from src.open_meteo_cast.statistics import calculate_percentiles, calculate_precipitation_statistics, calculate_octa_probabilities, calculate_wind_direction_probabilities, calculate_weather_code_probabilities
 
 def test_calculate_percentiles_basic():
     data = {
@@ -185,3 +185,37 @@ def test_calculate_wind_direction_probabilities_single_data_column():
     assert stats_df['S_prob'].iloc[0] == pytest.approx(1.0)
     for octant in ['N', 'NE', 'E', 'SE', 'SW', 'W', 'NW']:
         assert stats_df[f'{octant}_prob'].iloc[0] == pytest.approx(0.0)
+
+def test_calculate_weather_code_probabilities_basic():
+    data = {
+        'member1': [3, 50],
+        'member2': [3, 51],
+        'member3': [3, 51],
+        'member4': [3, 99]
+    }
+    index = pd.to_datetime(['2023-01-01', '2023-01-02'])
+    df = pd.DataFrame(data, index=index)
+
+    stats_df = calculate_weather_code_probabilities(df)
+
+    assert isinstance(stats_df.index, pd.DatetimeIndex)
+    assert len(stats_df.columns) == 100
+    assert 'wc_prob_00' in stats_df.columns
+    assert 'wc_prob_99' in stats_df.columns
+
+    # For row 0: [3, 3, 3, 3] -> probability of code 3 is 1.0
+    assert stats_df['wc_prob_03'].iloc[0] == pytest.approx(1.0)
+    assert stats_df['wc_prob_50'].iloc[0] == pytest.approx(0.0)
+
+    # For row 1: [50, 51, 51, 99]
+    assert stats_df['wc_prob_50'].iloc[1] == pytest.approx(0.25)
+    assert stats_df['wc_prob_51'].iloc[1] == pytest.approx(0.50)
+    assert stats_df['wc_prob_99'].iloc[1] == pytest.approx(0.25)
+    
+    # Check that other probabilities are zero for the second row
+    all_codes = set(range(100))
+    expected_codes_in_row1 = {3, 50, 51, 99}
+    for code in all_codes - expected_codes_in_row1:
+        col_name = f"wc_prob_{code:02d}"
+        if col_name in stats_df.columns:
+            assert stats_df[col_name].iloc[1] == pytest.approx(0.0)

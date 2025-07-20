@@ -127,9 +127,7 @@ class WeatherModel:
                 elif variable == 'cloud_cover':
                     # Convert cloud cover from percentage to octas
                     octas_df = (data_df / 100 * 8).round().astype(int)
-                    percentiles_df = calculate_percentiles(octas_df)
-                    octa_probs_df = calculate_octa_probabilities(octas_df)
-                    self.statistics[variable] = pd.concat([percentiles_df, octa_probs_df], axis=1)
+                    self.statistics[variable] = calculate_octa_probabilities(octas_df)
                 elif variable == 'wind_direction_10m':
                     self.statistics[variable] = calculate_wind_direction_probabilities(data_df)
                 elif variable == 'weather_code':

@@ -126,7 +126,7 @@ class WeatherModel:
                     self.statistics[variable] = calculate_precipitation_statistics(data_df)
                 elif variable == 'cloud_cover':
                     # Convert cloud cover from percentage to octas
-                    octas_df = (data_df / 100 * 8).round().astype(int)
+                    octas_df = (data_df / 100 * 8).round()
                     self.statistics[variable] = calculate_octa_probabilities(octas_df)
                 elif variable == 'wind_direction_10m':
                     self.statistics[variable] = calculate_wind_direction_probabilities(data_df)

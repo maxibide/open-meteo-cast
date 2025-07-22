@@ -79,8 +79,11 @@ def calculate_octa_probabilities(df: pd.DataFrame) -> pd.DataFrame:
 
     # Calculate the probability for each octa value (0-8)
     probabilities = {}
+    # Count valid (non-NaN) members for each row to use as the denominator
+    valid_members = df.count(axis=1)
     for octa in range(9):
-        probabilities[f'octa_{octa}_prob'] = (df == octa).mean(axis=1)
+        # Calculate probability ignoring NaNs, handle division by zero
+        probabilities[f'octa_{octa}_prob'] = np.where(valid_members > 0, (df == octa).sum(axis=1) / valid_members, 0)
 
     # Create a new DataFrame with the results
     statistics_df = pd.DataFrame(probabilities, index=df.index)
@@ -103,13 +106,15 @@ def calculate_wind_direction_probabilities(df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
     # Map degrees to octants: 0:N, 1:NE, 2:E, 3:SE, 4:S, 5:SW, 6:W, 7:NW
-    octants_numeric = np.floor(((df + 22.5) % 360) / 45).astype(int)
+    octants_numeric = np.floor(((df + 22.5) % 360) / 45)
     
     octant_labels = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
     
     probabilities = {}
+    # Count valid (non-NaN) members for each row to use as the denominator
+    valid_members = octants_numeric.count(axis=1)
     for i, label in enumerate(octant_labels):
-        probabilities[f'{label}_prob'] = (octants_numeric == i).mean(axis=1)
+        probabilities[f'{label}_prob'] = np.where(valid_members > 0, (octants_numeric == i).sum(axis=1) / valid_members, 0)
         
     statistics_df = pd.DataFrame(probabilities, index=df.index)
     
@@ -139,10 +144,11 @@ def calculate_weather_code_probabilities(df: pd.DataFrame) -> pd.DataFrame:
     storm_codes = [13, 17, 29, 95, 96, 98]
     severe_storm_codes = [18, 19, 97, 99]
 
+    valid_members = df.count(axis=1)
     probabilities = {
-        'fog_prob': df.isin(fog_codes).mean(axis=1),
-        'storm_prob': df.isin(storm_codes).mean(axis=1),
-        'severe_storm_prob': df.isin(severe_storm_codes).mean(axis=1)
+        'fog_prob': np.where(valid_members > 0, df.isin(fog_codes).sum(axis=1) / valid_members, 0),
+        'storm_prob': np.where(valid_members > 0, df.isin(storm_codes).sum(axis=1) / valid_members, 0),
+        'severe_storm_prob': np.where(valid_members > 0, df.isin(severe_storm_codes).sum(axis=1) / valid_members, 0)
     }
 
     # Create a new DataFrame with the results

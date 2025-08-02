@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 import pandas as pd
 import numpy as np
+from .database import get_db_connection
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_variable
 from .statistics import calculate_percentiles, calculate_precipitation_statistics, calculate_octa_probabilities, calculate_wind_direction_probabilities, calculate_weather_code_probabilities
 
@@ -124,7 +125,7 @@ class WeatherModel:
                     self.statistics[variable] = calculate_precipitation_statistics(data_df)
                 elif variable == 'cloud_cover':
                     # Convert cloud cover from percentage to octas
-                    octas_df = (data_df / 100 * 8).round().astype(int)
+                    octas_df = (data_df / 100 * 8).round().astype('Int64')
                     self.statistics[variable] = calculate_octa_probabilities(octas_df)
                 elif variable == 'wind_direction_10m':
                     self.statistics[variable] = calculate_wind_direction_probabilities(data_df)
@@ -216,6 +217,82 @@ class WeatherModel:
             print(f"Successfully exported statistics to {filepath}")
         except IOError as e:
             print(f"Error exporting statistics to {filepath}: {e}")
+
+    def _save_raw_data_to_db(self, run_id: int) -> None:
+        """Saves raw forecast data to the database."""
+        if not self.data:
+            print(f"No raw data to save for model {self.name}.")
+            return
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        for variable, data_df in self.data.items():
+            if data_df is None:
+                continue
+
+            # Melt the DataFrame to long format
+            melted_df = data_df.reset_index().melt(
+                id_vars=['date'],
+                var_name='member',
+                value_name='value'
+            )
+            
+            # Remove rows with missing values that would violate the NOT NULL constraint
+            melted_df.dropna(subset=['value'], inplace=True)
+            
+            # Extract member number from the 'member' column
+            melted_df['member'] = melted_df['member'].str.extract(r'member(\d+)').fillna('0')
+
+            records = [
+                (run_id, row['member'], variable, row['date'].isoformat(), row['value'])
+                for _, row in melted_df.iterrows()
+            ]
+
+            cursor.executemany("""
+                INSERT INTO raw_forecast_data (run_id, member, variable, forecast_timestamp, value)
+                VALUES (?, ?, ?, ?, ?)
+            """, records)
+
+        conn.commit()
+        conn.close()
+        print(f"Successfully saved raw data to the database for model {self.name}.")
+
+    def _save_statistics_to_db(self, run_id: int) -> None:
+        """Saves calculated statistics to the database."""
+        if not self.statistics:
+            print(f"No statistics to save for model {self.name}.")
+            return
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        for variable, stats_df in self.statistics.items():
+            if stats_df is None:
+                continue
+
+            records = []
+            for timestamp, row in stats_df.iterrows():
+                record = {
+                    'run_id': run_id,
+                    'variable': variable,
+                    'forecast_timestamp': timestamp.isoformat(),
+                    'mean': row.get('mean'),
+                    'std_dev': row.get('std'),
+                    'median': row.get('p50'),
+                    'p25': row.get('p25'),
+                    'p75': row.get('p75')
+                }
+                records.append(tuple(record.values()))
+
+            cursor.executemany("""
+                INSERT INTO statistical_forecasts (run_id, variable, forecast_timestamp, mean, std_dev, median, p25, p75)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, records)
+
+        conn.commit()
+        conn.close()
+        print(f"Successfully saved statistics to the database for model {self.name}.")
 
     @property
     def last_run_time(self) -> Optional[datetime]:

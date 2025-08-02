@@ -3,6 +3,7 @@ import yaml
 import os
 from datetime import datetime, timedelta
 from .weather_model import WeatherModel
+from . import database
 
 def load_config(config_path: str) -> Dict[str, Any]:
     """Load configuration from a YAML archive"""
@@ -25,6 +26,14 @@ def main():
     config = load_config('resources/default_config.yaml')
     if not config:
         return
+
+    # Initialize database
+    database.create_tables()
+
+    # Purge old data
+    retention_days = config.get('database', {}).get('retention_days')
+    if retention_days:
+        database.purge_old_runs(retention_days)
 
     model_used = config.get('models_used', [])
 
@@ -58,11 +67,27 @@ def main():
                     continue # Skip to the next model in the new_models list
 
         model.retrieve_data(config)
-        model.print_data()
         model.calculate_statistics()
-        model.print_statistics()
-        model.export_statistics_to_csv(output_dir, config)
 
+        # Save data to database
+        conn = database.get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)",
+                       (model.name, model.last_run_time))
+        run_id = cursor.lastrowid
+
+        # Clean up any previous data for this run_id to prevent duplicates
+        cursor.execute("DELETE FROM raw_forecast_data WHERE run_id = ?", (run_id,))
+        cursor.execute("DELETE FROM statistical_forecasts WHERE run_id = ?", (run_id,))
+
+        conn.commit()
+        conn.close()
+
+        if run_id:
+            model._save_raw_data_to_db(run_id)
+            model._save_statistics_to_db(run_id)
+            # model.print_statistics()
+            model.export_statistics_to_csv(output_dir, config)
 
 if __name__ == "__main__":
     main()

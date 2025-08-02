@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, mock_open
+from unittest.mock import patch, mock_open, MagicMock
 import json
 import pandas as pd
 from datetime import datetime
@@ -296,5 +296,73 @@ class TestWeatherModel:
         assert str(mock_df_cape) in captured.out
         assert "Data for weather_code:" in captured.out
         assert str(mock_df_weather_code) in captured.out
+
+    @patch('src.open_meteo_cast.weather_model.get_db_connection')
+    def test_save_raw_data_to_db(self, mock_get_db_connection, mock_weather_model_instance):
+        model = mock_weather_model_instance
+        
+        # Mock the database connection and cursor
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_get_db_connection.return_value = mock_conn
+        mock_conn.cursor.return_value = mock_cursor
+
+        # Create sample data
+        date_index = pd.to_datetime(['2023-01-01 00:00:00', '2023-01-01 01:00:00'])
+        date_index.name = 'date'
+        model.data = {
+            'temperature_2m': pd.DataFrame({
+                'temperature_2m_member1': [10.1, 11.1],
+                'temperature_2m_member2': [10.5, 11.5]
+            }, index=date_index)
+        }
+
+        # Call the method
+        model._save_raw_data_to_db(run_id=1)
+
+        # Assert that executemany was called with the correct data
+        assert mock_cursor.executemany.call_count == 1
+        call_args = mock_cursor.executemany.call_args[0][1]
+        expected_records = [
+            (1, '1', 'temperature_2m', '2023-01-01T00:00:00', 10.1),
+            (1, '1', 'temperature_2m', '2023-01-01T01:00:00', 11.1),
+            (1, '2', 'temperature_2m', '2023-01-01T00:00:00', 10.5),
+            (1, '2', 'temperature_2m', '2023-01-01T01:00:00', 11.5)
+        ]
+        # Sort both lists of tuples to ensure comparison is order-independent
+        assert sorted(call_args) == sorted(expected_records)
+        mock_conn.commit.assert_called_once()
+        mock_conn.close.assert_called_once()
+
+    @patch('src.open_meteo_cast.weather_model.get_db_connection')
+    def test_save_statistics_to_db(self, mock_get_db_connection, mock_weather_model_instance):
+        model = mock_weather_model_instance
+
+        # Mock the database connection and cursor
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_get_db_connection.return_value = mock_conn
+        mock_conn.cursor.return_value = mock_cursor
+
+        # Create sample statistics
+        date_index = pd.to_datetime(['2023-01-01 00:00:00'])
+        model.statistics = {
+            'temperature_2m': pd.DataFrame({
+                'mean': [10.3], 'std': [0.2], 'p50': [10.3], 'p25': [10.2], 'p75': [10.4]
+            }, index=date_index)
+        }
+
+        # Call the method
+        model._save_statistics_to_db(run_id=1)
+
+        # Assert that executemany was called with the correct data
+        assert mock_cursor.executemany.call_count == 1
+        call_args = mock_cursor.executemany.call_args[0][1]
+        expected_records = [
+            (1, 'temperature_2m', '2023-01-01T00:00:00', 10.3, 0.2, 10.3, 10.2, 10.4)
+        ]
+        assert call_args == expected_records
+        mock_conn.commit.assert_called_once()
+        mock_conn.close.assert_called_once()
 
     

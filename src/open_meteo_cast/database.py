@@ -90,8 +90,12 @@ def purge_old_runs(retention_days: int):
     # Use a tuple for the IN clause
     run_ids_tuple = tuple(old_run_ids)
 
-    # Delete only raw forecast data from old runs
+    # Delete associated data first to maintain foreign key integrity
     cursor.execute(f"DELETE FROM raw_forecast_data WHERE run_id IN ({','.join(['?']*len(old_run_ids))})", run_ids_tuple)
+    cursor.execute(f"DELETE FROM statistical_forecasts WHERE run_id IN ({','.join(['?']*len(old_run_ids))})", run_ids_tuple)
+
+    # Finally, delete the old forecast runs
+    cursor.execute(f"DELETE FROM forecast_runs WHERE run_id IN ({','.join(['?']*len(old_run_ids))})", run_ids_tuple)
 
     conn.commit()
     conn.close()

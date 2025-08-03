@@ -10,6 +10,7 @@ DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 def get_db_connection() -> sqlite3.Connection:
     """Establishes a connection to the SQLite database."""
     conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON;")  # Enforce foreign key constraints
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -21,9 +22,9 @@ def create_tables():
     # Table for forecast runs to group all data from a single execution
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS forecast_runs (
-            run_id INTEGER PRIMARY KEY AUTOINCREMENT,
             model_name TEXT NOT NULL,
-            run_timestamp DATETIME NOT NULL
+            run_timestamp DATETIME NOT NULL,
+            PRIMARY KEY (model_name, run_timestamp)
         );
     """)
 
@@ -31,13 +32,14 @@ def create_tables():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS raw_forecast_data (
             data_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            run_id INTEGER NOT NULL,
+            model_name TEXT NOT NULL,
+            run_timestamp DATETIME NOT NULL,
             member TEXT NOT NULL,
             variable TEXT NOT NULL,
             forecast_timestamp DATETIME NOT NULL,
             value REAL NOT NULL,
-            FOREIGN KEY (run_id) REFERENCES forecast_runs (run_id),
-            UNIQUE(run_id, member, variable, forecast_timestamp)
+            FOREIGN KEY (model_name, run_timestamp) REFERENCES forecast_runs (model_name, run_timestamp) ON DELETE CASCADE,
+            UNIQUE(model_name, run_timestamp, member, variable, forecast_timestamp)
         );
     """)
 
@@ -45,13 +47,14 @@ def create_tables():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS statistical_forecasts (
             stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            run_id INTEGER NOT NULL,
+            model_name TEXT NOT NULL,
+            run_timestamp DATETIME NOT NULL,
             variable TEXT NOT NULL,
             statistic TEXT NOT NULL,
             forecast_timestamp DATETIME NOT NULL,
             value REAL,
-            FOREIGN KEY (run_id) REFERENCES forecast_runs (run_id),
-            UNIQUE(run_id, variable, statistic, forecast_timestamp)
+            FOREIGN KEY (model_name, run_timestamp) REFERENCES forecast_runs (model_name, run_timestamp) ON DELETE CASCADE,
+            UNIQUE(model_name, run_timestamp, variable, statistic, forecast_timestamp)
         );
     """)
 
@@ -72,27 +75,20 @@ def purge_old_runs(retention_days: int):
     # Calculate the cutoff date
     cutoff_date = datetime.now() - timedelta(days=retention_days)
 
-    # Find old run_ids
-    cursor.execute("SELECT run_id FROM forecast_runs WHERE run_timestamp < ?", (cutoff_date.isoformat(),))
-    old_run_ids = [row[0] for row in cursor.fetchall()]
+    # Find old runs
+    cursor.execute("SELECT model_name, run_timestamp FROM forecast_runs WHERE run_timestamp < ?", (cutoff_date.isoformat(),))
+    old_runs = cursor.fetchall()
 
-    if not old_run_ids:
+    if not old_runs:
         print("No old forecast runs to purge.")
         conn.close()
         return
 
-    print(f"Found {len(old_run_ids)} old run(s) to purge.")
+    print(f"Found {len(old_runs)} old run(s) to purge.")
 
-    # Use a tuple for the IN clause
-    run_ids_tuple = tuple(old_run_ids)
-
-    # Delete associated data first to maintain foreign key integrity
-    cursor.execute(f"DELETE FROM raw_forecast_data WHERE run_id IN ({','.join(['?']*len(old_run_ids))})", run_ids_tuple)
-    cursor.execute(f"DELETE FROM statistical_forecasts WHERE run_id IN ({','.join(['?']*len(old_run_ids))})", run_ids_tuple)
-
-    # Finally, delete the old forecast runs
-    cursor.execute(f"DELETE FROM forecast_runs WHERE run_id IN ({','.join(['?']*len(old_run_ids))})", run_ids_tuple)
+    # Delete the old forecast runs. Associated data will be deleted automatically due to ON DELETE CASCADE.
+    cursor.executemany("DELETE FROM forecast_runs WHERE model_name = ? AND run_timestamp = ?", old_runs)
 
     conn.commit()
     conn.close()
-    print(f"Successfully purged {len(old_run_ids)} old forecast run(s).")
+    print(f"Successfully purged {len(old_runs)} old forecast run(s).")

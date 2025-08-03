@@ -318,16 +318,16 @@ class TestWeatherModel:
         }
 
         # Call the method
-        model._save_raw_data_to_db(run_id=1)
+        model._save_raw_data_to_db(model.name, model.last_run_time)
 
         # Assert that executemany was called with the correct data
         assert mock_cursor.executemany.call_count == 1
         call_args = mock_cursor.executemany.call_args[0][1]
         expected_records = [
-            (1, '1', 'temperature_2m', '2023-01-01T00:00:00', 10.1),
-            (1, '1', 'temperature_2m', '2023-01-01T01:00:00', 11.1),
-            (1, '2', 'temperature_2m', '2023-01-01T00:00:00', 10.5),
-            (1, '2', 'temperature_2m', '2023-01-01T01:00:00', 11.5)
+            (model.name, model.last_run_time.isoformat(), '1', 'temperature_2m', '2023-01-01T00:00:00', 10.1),
+            (model.name, model.last_run_time.isoformat(), '1', 'temperature_2m', '2023-01-01T01:00:00', 11.1),
+            (model.name, model.last_run_time.isoformat(), '2', 'temperature_2m', '2023-01-01T00:00:00', 10.5),
+            (model.name, model.last_run_time.isoformat(), '2', 'temperature_2m', '2023-01-01T01:00:00', 11.5)
         ]
         # Sort both lists of tuples to ensure comparison is order-independent
         assert sorted(call_args) == sorted(expected_records)
@@ -354,15 +354,15 @@ class TestWeatherModel:
         }
 
         # Call the method
-        model._save_statistics_to_db(run_id=1)
+        model._save_statistics_to_db(model.name, model.last_run_time)
 
         # Assert that executemany was called with the correct data
         assert mock_cursor.executemany.call_count == 1
         call_args = mock_cursor.executemany.call_args[0][1]
         expected_records = [
-            (1, 'temperature_2m', 'p10', '2023-01-01T00:00:00', 10.2),
-            (1, 'temperature_2m', 'median', '2023-01-01T00:00:00', 10.3),
-            (1, 'temperature_2m', 'p90', '2023-01-01T00:00:00', 10.4)
+            (model.name, model.last_run_time.isoformat(), 'temperature_2m', 'p10', '2023-01-01T00:00:00', 10.2),
+            (model.name, model.last_run_time.isoformat(), 'temperature_2m', 'median', '2023-01-01T00:00:00', 10.3),
+            (model.name, model.last_run_time.isoformat(), 'temperature_2m', 'p90', '2023-01-01T00:00:00', 10.4)
         ]
         # Sort both lists of tuples to ensure comparison is order-independent
         assert sorted(call_args) == sorted(expected_records)

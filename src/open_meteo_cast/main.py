@@ -73,22 +73,19 @@ def main():
         # Save data to database
         conn = database.get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)",
-                       (model.name, model.last_run_time))
-        run_id = cursor.lastrowid
-
-        # Clean up any previous data for this run_id to prevent duplicates
-        cursor.execute("DELETE FROM raw_forecast_data WHERE run_id = ?", (run_id,))
-        cursor.execute("DELETE FROM statistical_forecasts WHERE run_id = ?", (run_id,))
-
+        # Insert the new run, replacing any existing run with the same key.
+        # The ON DELETE CASCADE foreign key will automatically remove old child records.
+        cursor.execute("INSERT OR REPLACE INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)",
+                       (model.name, model.last_run_time.isoformat()))
         conn.commit()
         conn.close()
 
-        if run_id:
-            model._save_raw_data_to_db(run_id)
-            model._save_statistics_to_db(run_id)
-            # model.print_statistics()
-            model.export_statistics_to_csv(output_dir, config)
+        # Save the raw and statistical data associated with the new run
+        model._save_raw_data_to_db(model.name, model.last_run_time)
+        model._save_statistics_to_db(model.name, model.last_run_time)
+
+        # Export statistics to CSV
+        model.export_statistics_to_csv(output_dir, config)
 
 if __name__ == "__main__":
     main()

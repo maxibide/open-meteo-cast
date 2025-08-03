@@ -218,7 +218,7 @@ class WeatherModel:
         except IOError as e:
             print(f"Error exporting statistics to {filepath}: {e}")
 
-    def _save_raw_data_to_db(self, run_id: int) -> None:
+    def _save_raw_data_to_db(self, model_name: str, run_timestamp: datetime) -> None:
         """Saves raw forecast data to the database."""
         if not self.data:
             print(f"No raw data to save for model {self.name}.")
@@ -245,20 +245,20 @@ class WeatherModel:
             melted_df['member'] = melted_df['member'].str.extract(r'member(\d+)').fillna('0')
 
             records = [
-                (run_id, row['member'], variable, row['date'].isoformat(), row['value'])
+                (model_name, run_timestamp.isoformat(), row['member'], variable, row['date'].isoformat(), row['value'])
                 for _, row in melted_df.iterrows()
             ]
 
             cursor.executemany("""
-                INSERT INTO raw_forecast_data (run_id, member, variable, forecast_timestamp, value)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO raw_forecast_data (model_name, run_timestamp, member, variable, forecast_timestamp, value)
+                VALUES (?, ?, ?, ?, ?, ?)
             """, records)
 
         conn.commit()
         conn.close()
         print(f"Successfully saved raw data to the database for model {self.name}.")
 
-    def _save_statistics_to_db(self, run_id: int) -> None:
+    def _save_statistics_to_db(self, model_name: str, run_timestamp: datetime) -> None:
         """Saves calculated statistics to the database."""
         if not self.statistics:
             print(f"No statistics to save for model {self.name}.")
@@ -283,7 +283,7 @@ class WeatherModel:
             melted_df.dropna(subset=['value'], inplace=True)
 
             records = [
-                (run_id, variable, row['statistic'], row['date'].isoformat(), row['value'])
+                (model_name, run_timestamp.isoformat(), variable, row['statistic'], row['date'].isoformat(), row['value'])
                 for _, row in melted_df.iterrows()
             ]
 
@@ -291,8 +291,8 @@ class WeatherModel:
                 continue
 
             cursor.executemany("""
-                INSERT INTO statistical_forecasts (run_id, variable, statistic, forecast_timestamp, value)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO statistical_forecasts (model_name, run_timestamp, variable, statistic, forecast_timestamp, value)
+                VALUES (?, ?, ?, ?, ?, ?)
             """, records)
 
         conn.commit()

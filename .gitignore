@@ -216,4 +216,4 @@ output/
 last_run.json
 
 # Open-Meteo data cache
-.cache.sqlite 
+.cache.sqlite data/

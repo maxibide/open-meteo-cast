@@ -41,21 +41,17 @@ def create_tables():
         );
     """)
 
-    # Table for pre-calculated statistical forecasts (cache)
+    # Table for pre-calculated statistical forecasts (long format)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS statistical_forecasts (
             stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
             run_id INTEGER NOT NULL,
             variable TEXT NOT NULL,
+            statistic TEXT NOT NULL,
             forecast_timestamp DATETIME NOT NULL,
-            mean REAL,
-            std_dev REAL,
-            median REAL,
-            p25 REAL,
-            p75 REAL,
-            -- Add other statistical columns as needed in the future
+            value REAL,
             FOREIGN KEY (run_id) REFERENCES forecast_runs (run_id),
-            UNIQUE(run_id, variable, forecast_timestamp)
+            UNIQUE(run_id, variable, statistic, forecast_timestamp)
         );
     """)
 

@@ -31,6 +31,7 @@ def calculate_percentiles(df: pd.DataFrame) -> pd.DataFrame:
         'p90': p90
     }, index=df.index) # Keep the original index
 
+    statistics_df.index.name = 'date'
     return statistics_df
 
 def calculate_precipitation_statistics(df: pd.DataFrame) -> pd.DataFrame:
@@ -60,6 +61,7 @@ def calculate_precipitation_statistics(df: pd.DataFrame) -> pd.DataFrame:
         'conditional_average': conditional_average
     }, index=df.index) # Keep the original index
 
+    statistics_df.index.name = 'date'
     return statistics_df
 
 def calculate_octa_probabilities(df: pd.DataFrame) -> pd.DataFrame:
@@ -85,6 +87,7 @@ def calculate_octa_probabilities(df: pd.DataFrame) -> pd.DataFrame:
     # Create a new DataFrame with the results
     statistics_df = pd.DataFrame(probabilities, index=df.index)
 
+    statistics_df.index.name = 'date'
     return statistics_df
 
 def calculate_wind_direction_probabilities(df: pd.DataFrame) -> pd.DataFrame:
@@ -113,6 +116,7 @@ def calculate_wind_direction_probabilities(df: pd.DataFrame) -> pd.DataFrame:
         
     statistics_df = pd.DataFrame(probabilities, index=df.index)
     
+    statistics_df.index.name = 'date'
     return statistics_df
 
 def calculate_weather_code_probabilities(df: pd.DataFrame) -> pd.DataFrame:
@@ -148,4 +152,5 @@ def calculate_weather_code_probabilities(df: pd.DataFrame) -> pd.DataFrame:
     # Create a new DataFrame with the results
     statistics_df = pd.DataFrame(probabilities, index=df.index)
 
+    statistics_df.index.name = 'date'
     return statistics_df

@@ -346,9 +346,10 @@ class TestWeatherModel:
 
         # Create sample statistics
         date_index = pd.to_datetime(['2023-01-01 00:00:00'])
+        date_index.name = 'date'
         model.statistics = {
             'temperature_2m': pd.DataFrame({
-                'mean': [10.3], 'std': [0.2], 'p50': [10.3], 'p25': [10.2], 'p75': [10.4]
+                'p10': [10.2], 'median': [10.3], 'p90': [10.4]
             }, index=date_index)
         }
 
@@ -359,9 +360,12 @@ class TestWeatherModel:
         assert mock_cursor.executemany.call_count == 1
         call_args = mock_cursor.executemany.call_args[0][1]
         expected_records = [
-            (1, 'temperature_2m', '2023-01-01T00:00:00', 10.3, 0.2, 10.3, 10.2, 10.4)
+            (1, 'temperature_2m', 'p10', '2023-01-01T00:00:00', 10.2),
+            (1, 'temperature_2m', 'median', '2023-01-01T00:00:00', 10.3),
+            (1, 'temperature_2m', 'p90', '2023-01-01T00:00:00', 10.4)
         ]
-        assert call_args == expected_records
+        # Sort both lists of tuples to ensure comparison is order-independent
+        assert sorted(call_args) == sorted(expected_records)
         mock_conn.commit.assert_called_once()
         mock_conn.close.assert_called_once()
 

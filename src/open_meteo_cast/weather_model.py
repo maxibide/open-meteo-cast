@@ -268,26 +268,31 @@ class WeatherModel:
         cursor = conn.cursor()
 
         for variable, stats_df in self.statistics.items():
-            if stats_df is None:
+            if stats_df is None or stats_df.empty:
                 continue
 
-            records = []
-            for timestamp, row in stats_df.iterrows():
-                record = {
-                    'run_id': run_id,
-                    'variable': variable,
-                    'forecast_timestamp': timestamp.isoformat(),
-                    'mean': row.get('mean'),
-                    'std_dev': row.get('std'),
-                    'median': row.get('p50'),
-                    'p25': row.get('p25'),
-                    'p75': row.get('p75')
-                }
-                records.append(tuple(record.values()))
+            # Melt the DataFrame to long format.
+            # The index is expected to be a DatetimeIndex named 'date'.
+            melted_df = stats_df.reset_index().melt(
+                id_vars=['date'],
+                var_name='statistic',
+                value_name='value'
+            )
+
+            # Remove rows with missing values.
+            melted_df.dropna(subset=['value'], inplace=True)
+
+            records = [
+                (run_id, variable, row['statistic'], row['date'].isoformat(), row['value'])
+                for _, row in melted_df.iterrows()
+            ]
+
+            if not records:
+                continue
 
             cursor.executemany("""
-                INSERT INTO statistical_forecasts (run_id, variable, forecast_timestamp, mean, std_dev, median, p25, p75)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO statistical_forecasts (run_id, variable, statistic, forecast_timestamp, value)
+                VALUES (?, ?, ?, ?, ?)
             """, records)
 
         conn.commit()

@@ -9,7 +9,8 @@ def load_config(config_path: str) -> Dict[str, Any]:
     """Load configuration from a YAML archive"""
     try:
         with open(config_path, 'r', encoding='utf-8') as file:
-            return yaml.safe_load(file)  # type: ignore[no-any-return]
+            config = yaml.safe_load(file)
+            return config if isinstance(config, dict) else {}
     except FileNotFoundError:
         print(f"Error: File {config_path} not found")
         return {}

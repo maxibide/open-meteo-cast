@@ -92,3 +92,27 @@ def purge_old_runs(retention_days: int):
     conn.commit()
     conn.close()
     print(f"Successfully purged {len(old_runs)} old forecast run(s).")
+
+
+def get_last_run_timestamp(model_name: str) -> datetime | None:
+    """
+    Retrieves the most recent run timestamp for a given model from the database.
+
+    Args:
+        model_name: The name of the model.
+
+    Returns:
+        A datetime object of the last run, or None if no run is found.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT MAX(run_timestamp) FROM forecast_runs WHERE model_name = ?",
+        (model_name,)
+    )
+    result = cursor.fetchone()
+    conn.close()
+
+    if result and result[0]:
+        return datetime.fromisoformat(result[0])
+    return None

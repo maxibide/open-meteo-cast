@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 import pandas as pd
 import numpy as np
-from .database import get_db_connection
+from .database import get_db_connection, get_last_run_timestamp
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_variable
 from .statistics import calculate_percentiles, calculate_precipitation_statistics, calculate_octa_probabilities, calculate_wind_direction_probabilities, calculate_weather_code_probabilities
 
@@ -26,50 +26,26 @@ class WeatherModel:
         self.data: Dict[str, Optional[pd.DataFrame]] = {}
         self.statistics: Dict[str, Optional[pd.DataFrame]] = {}
 
-    def check_if_new(self, last_run_file: str = 'last_run.json') -> bool:
+    def check_if_new(self) -> bool:
         """
-        Checks if the model run is newer than the last recorded run.
-        It fetches metadata and compares timestamps.
+        Checks if the model run is newer than the last recorded run in the database.
         """
         if self.metadata is None:
             print(f"Error: Metadata not available for {self.name}. Cannot check for new run.")
             return False
 
-        try:
-            with open(last_run_file, 'r', encoding='utf-8') as file:
-                last_runs = json.load(file)
-        except FileNotFoundError:
-            last_runs = {}
-        except json.JSONDecodeError:
-            print(f"Warning: Could not decode JSON from {last_run_file}. Treating as empty.")
-            last_runs = {}
-
         current_run_time = self.metadata.get('last_run_initialisation_time')
-
         if current_run_time is None:
             print(f"Error: Could not determine current run time for {self.name}.")
             return False
 
-        last_run_time_str = last_runs.get(self.name)
-        last_run_time = None
-        if last_run_time_str:
-            try:
-                last_run_time = datetime.fromisoformat(last_run_time_str)
-            except ValueError:
-                print(f"Warning: Could not parse last run time '{last_run_time_str}' for {self.name}.")
+        last_run_from_db = get_last_run_timestamp(self.name)
 
-
-        if last_run_time is None or current_run_time > last_run_time:
+        if last_run_from_db is None or current_run_time > last_run_from_db:
             print(f"New model run detected for {self.name}.")
-            last_runs[self.name] = current_run_time.isoformat()
-            try:
-                with open(last_run_file, 'w', encoding='utf-8') as file:
-                    json.dump(last_runs, file, indent=4)
-            except IOError as e:
-                print(f"Error writing updated run time to {last_run_file}: {e}")
             return True
         
-        print(f"No new model run for {self.name}.")
+        print(f"No new model run for {self.name}. Loading from database.")
         return False
 
     def print_metadata(self) -> None:

@@ -15,6 +15,7 @@ This tool is ideal for weather enthusiasts, data analysts, and developers who ne
     *   Analyzes wind direction probabilities across 8 octants.
     *   Groups complex **weather codes** into clear, probabilistic categories: **Fog**, **Storm**, and **Severe Storm**.
 *   **Automated Updates**: Checks for new model runs to ensure forecasts are always based on the latest data.
+*   **Data Persistence**: Stores all downloaded model data and calculated statistics in a local SQLite database, ensuring data is not lost and can be re-used without re-downloading.
 *   **User-Friendly Output**: Consolidates the full statistical forecast into a single, clean CSV file, with timestamps automatically converted to the user's local timezone.
 
 ## Usage
@@ -44,6 +45,15 @@ This tool is ideal for weather enthusiasts, data analysts, and developers who ne
 
 ## Output
 
-The tool will generate a CSV file in the `output/` directory for each model run (e.g., `gfs025_20250719T120000.csv`).
+The tool will generate a CSV file in the `output/` directory for each new model run (e.g., `gfs025_20250719T120000.csv`).
 
 The columns are prefixed with the variable name (e.g., `temperature_2m_p10`, `precipitation_probability`, `cloud_cover_octa_3_prob`). This format provides a comprehensive view of the forecast, ready for analysis or visualization.
+
+### Example Output
+
+```
+date,temperature_2m_p10,temperature_2m_median,temperature_2m_p90,precipitation_probability,precipitation_conditional_average
+2025-08-09 12:00:00,10.5,12.1,13.5,0.1,0.5
+2025-08-09 13:00:00,10.8,12.5,13.9,0.15,0.6
+2025-08-09 14:00:00,11.2,12.9,14.3,0.2,0.7
+```

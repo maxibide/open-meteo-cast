@@ -53,21 +53,19 @@ def main():
 
     new_models = [model for model in models if model.is_new]
 
+    output_dir = 'output'
+    os.makedirs(output_dir, exist_ok=True)
+
     if new_models:
-
-        # Create output directory if it doesn't exist
-        output_dir = 'output'
-        os.makedirs(output_dir, exist_ok=True)
-
         for new_model in new_models:
             # Export statistics to CSV
             new_model.export_statistics_to_csv(output_dir, config)
 
     # 7 Create and export ensemble
     
-        print("\n--- Creating and exporting ensemble ---")
-        ensemble = Ensemble(models)
-        ensemble.to_csv(output_dir, config)
+    print("\n--- Creating and exporting ensemble ---")
+    ensemble = Ensemble(models)
+    ensemble.to_csv(output_dir, config)
 
 if __name__ == "__main__":
     main()

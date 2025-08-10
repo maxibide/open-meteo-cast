@@ -4,6 +4,9 @@ location:
   name: "Bahía Blanca"
   timezone: "America/Argentina/Buenos_Aires"
 
+database:
+  retention_days: 30
+
 api:
   open-meteo:
 

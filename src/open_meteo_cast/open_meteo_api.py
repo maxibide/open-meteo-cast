@@ -95,10 +95,10 @@ def retrieve_model_variable(config: Dict[str, Any], model_name: str, var_to_retr
 
     # Process first location. Add a for-loop for multiple locations or weather models
     response = responses[0]
-    print(f"Coordinates {response.Latitude()}°N {response.Longitude()}°E")
-    print(f"Elevation {response.Elevation()} m asl")
-    print(f"Timezone {response.Timezone()}{response.TimezoneAbbreviation()}")
-    print(f"Timezone difference to GMT+0 {response.UtcOffsetSeconds()} s")
+    # print(f"Coordinates {response.Latitude()}°N {response.Longitude()}°E")
+    # print(f"Elevation {response.Elevation()} m asl")
+    # print(f"Timezone {response.Timezone()}{response.TimezoneAbbreviation()}")
+    # print(f"Timezone difference to GMT+0 {response.UtcOffsetSeconds()} s")
 
     # Process hourly data
     hourly = response.Hourly()
@@ -137,5 +137,5 @@ def retrieve_model_variable(config: Dict[str, Any], model_name: str, var_to_retr
         hourly_data[f"{var_to_retrieve}_member{member}"] = variable.ValuesAsNumpy()
 
     hourly_dataframe = pd.DataFrame(data = hourly_data)
-    print(hourly_dataframe)
+    # print(hourly_dataframe)
     return hourly_dataframe

@@ -21,6 +21,7 @@ class Ensemble:
             models: A list of WeatherModel objects.
         """
         self.models = models
+        print(f"Calculating ensemble from {[model.name for model in self.models]}")
         self.stats_df = self._calculate_ensemble_stats()
 
     def _calculate_ensemble_stats(self) -> pd.DataFrame:

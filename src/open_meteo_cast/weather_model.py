@@ -1,9 +1,11 @@
 from typing import Any, Dict, Optional
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
+import sqlite3
+from .database import get_db_connection, get_last_run_timestamp, load_raw_data, load_statistics, save_forecast_run, save_raw_data, save_statistics
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_variable
 from .statistics import calculate_percentiles, calculate_precipitation_statistics, calculate_octa_probabilities, calculate_wind_direction_probabilities, calculate_weather_code_probabilities
 
@@ -21,57 +23,74 @@ class WeatherModel:
             model_name: The name of the model (e.g., 'gfs025').
             config: The application configuration dictionary.
         """
+        print(f"\n--- Processing model: {model_name} ---")
         self.name = model_name
+        self.is_valid = False
+        self.is_new = False
         self.metadata_url = config.get('api', {}).get('open-meteo', {}).get('ensemble_metadata', {}).get(model_name)
         self.metadata = retrieve_model_metadata(self.metadata_url)
+        self.print_metadata()
         self.data: Dict[str, Optional[pd.DataFrame]] = {}
         self.statistics: Dict[str, Optional[pd.DataFrame]] = {}
 
-    def check_if_new(self, last_run_file: str = 'last_run.json') -> bool:
+        if not self.check_if_new():
+            self.load_from_db()
+            if self.data: # Verify successful model load
+                self.is_valid = True
+
+        else:
+            if datetime.now() - self.metadata.get('last_run_availability_time') < timedelta(minutes=10):
+                print(f"Last run for {self.name} was available less than 10 minutes ago.")
+                print("To ensure data integrity, please wait a few more minutes before downloading.")
+                self.load_from_db()
+                if self.data: # Verify successful model load
+                    self.is_valid = True
+            elif datetime.now() - self.metadata.get('last_run_initialisation_time') > timedelta(days=1):
+                print(f"Last run for {self.name} too old. Skipping.")
+            else:
+                self.retrieve_data(config)
+                self.calculate_statistics()
+                if self.data: # Verify successful model load
+                    self.is_valid = True
+                    self.is_new = True # Indicate this is a recent downloaded run
+                self.save_to_db()
+
+    def check_if_new(self) -> bool:
         """
-        Checks if the model run is newer than the last recorded run.
-        It fetches metadata and compares timestamps.
+        Checks if the model run is newer than the last recorded run in the database.
         """
         if self.metadata is None:
             print(f"Error: Metadata not available for {self.name}. Cannot check for new run.")
             return False
 
-        try:
-            with open(last_run_file, 'r', encoding='utf-8') as file:
-                last_runs = json.load(file)
-        except FileNotFoundError:
-            last_runs = {}
-        except json.JSONDecodeError:
-            print(f"Warning: Could not decode JSON from {last_run_file}. Treating as empty.")
-            last_runs = {}
-
         current_run_time = self.metadata.get('last_run_initialisation_time')
-
         if current_run_time is None:
             print(f"Error: Could not determine current run time for {self.name}.")
             return False
 
-        last_run_time_str = last_runs.get(self.name)
-        last_run_time = None
-        if last_run_time_str:
-            try:
-                last_run_time = datetime.fromisoformat(last_run_time_str)
-            except ValueError:
-                print(f"Warning: Could not parse last run time '{last_run_time_str}' for {self.name}.")
+        last_run_from_db = get_last_run_timestamp(self.name)
 
-
-        if last_run_time is None or current_run_time > last_run_time:
+        if last_run_from_db is None or current_run_time > last_run_from_db:
             print(f"New model run detected for {self.name}.")
-            last_runs[self.name] = current_run_time.isoformat()
-            try:
-                with open(last_run_file, 'w', encoding='utf-8') as file:
-                    json.dump(last_runs, file, indent=4)
-            except IOError as e:
-                print(f"Error writing updated run time to {last_run_file}: {e}")
             return True
         
-        print(f"No new model run for {self.name}.")
+        print(f"No new model run for {self.name}. Loading from database.")
         return False
+
+    def load_from_db(self) -> None:
+        """
+        Loads the latest available model data and statistics from the database.
+        """
+        print(f"Loading data from database for model {self.name}...")
+        last_run_timestamp = get_last_run_timestamp(self.name)
+        if last_run_timestamp is None:
+            print(f"No data found in database for model {self.name}.")
+            return
+
+        self.data = load_raw_data(self.name, last_run_timestamp)
+        self.statistics = load_statistics(self.name, last_run_timestamp)
+
+        print(f"Data for model {self.name} (run: {last_run_timestamp}) loaded successfully from database.")
 
     def print_metadata(self) -> None:
         """Formats and prints dictionary with model metadata."""
@@ -90,6 +109,7 @@ class WeatherModel:
             config: The application configuration dictionary.
 
         """
+        print(f"Retrieving data for {self.name}")
         variables = ["temperature_2m", "dew_point_2m", "pressure_msl", "temperature_850hPa", "precipitation",
                      "snowfall", "cloud_cover", "wind_speed_10m", "wind_gusts_10m", "wind_direction_10m",
                      "cape", "weather_code"]
@@ -126,7 +146,7 @@ class WeatherModel:
                     self.statistics[variable] = calculate_precipitation_statistics(data_df)
                 elif variable == 'cloud_cover':
                     # Convert cloud cover from percentage to octas
-                    octas_df = (data_df / 100 * 8).round()
+                    octas_df = (data_df / 100 * 8).round().astype('Int64')
                     self.statistics[variable] = calculate_octa_probabilities(octas_df)
                 elif variable == 'wind_direction_10m':
                     self.statistics[variable] = calculate_wind_direction_probabilities(data_df)
@@ -163,7 +183,7 @@ class WeatherModel:
             print(f"No statistics available to export for {self.name}.")
             return
 
-        last_run = self.last_run_time
+        last_run = self.metadata.get('last_run_initialisation_time')
         if last_run is None:
             print(f"Error: Cannot determine last run time for {self.name}. Cannot export statistics.")
             return
@@ -204,15 +224,25 @@ class WeatherModel:
         except IOError as e:
             print(f"Error exporting statistics to {filepath}: {e}")
 
-    @property
-    def last_run_time(self) -> Optional[datetime]:
-        """Returns the last run initialization time from the model metadata.
+    def save_to_db(self) -> None:
+        """Saves the model's raw data and statistics to the database."""
+        last_run = self.metadata.get('last_run_initialisation_time')
+        if last_run is None:
+            print(f"Error: Cannot determine last run time for {self.name}. Cannot save to database.")
+            return
 
-        Returns:
-
-            A datetime object representing the last run initialization time, or None if not available.
-
-        """
-        if self.metadata:
-            return self.metadata.get('last_run_initialisation_time')
-        return None
+        conn = get_db_connection()
+        try:
+            conn.execute("BEGIN")
+            save_forecast_run(conn, self.name, last_run)
+            save_raw_data(conn, self.name, last_run, self.data)
+            save_statistics(conn, self.name, last_run, self.statistics)
+            conn.commit()
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            print(f"Data for model {self.name} and run {last_run} already exists in the database. Skipping.")
+        except Exception as e:
+            conn.rollback()
+            print(f"An error occurred while saving data to the database for {self.name}: {e}")
+        finally:
+            conn.close()

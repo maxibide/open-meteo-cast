@@ -2,6 +2,7 @@ import sqlite3
 from pathlib import Path
 import pandas as pd
 from datetime import datetime, timedelta
+from typing import Union
 
 # Define the path for the database in a dedicated data directory
 DB_PATH = Path(__file__).parent.parent.parent / "data" / "forecasts.db"
@@ -94,7 +95,7 @@ def purge_old_runs(retention_days: int):
     print(f"Successfully purged {len(old_runs)} old forecast run(s).")
 
 
-def get_last_run_timestamp(model_name: str) -> datetime | None:
+def get_last_run_timestamp(model_name: str) -> Union[datetime, None]:
     """
     Retrieves the most recent run timestamp for a given model from the database.
 

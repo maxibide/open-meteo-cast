@@ -1,9 +1,7 @@
-from typing import Any, Dict, Optional
-import json
+from typing import Any, Dict, Optional, Union
 import os
 from datetime import datetime, timedelta
 import pandas as pd
-import numpy as np
 import sqlite3
 from .database import get_db_connection, get_last_run_timestamp, load_raw_data, load_statistics, save_forecast_run, save_raw_data, save_statistics
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_variable
@@ -39,21 +37,36 @@ class WeatherModel:
                 self.is_valid = True
 
         else:
-            if datetime.now() - self.metadata.get('last_run_availability_time') < timedelta(minutes=10):
+            if self.metadata is None:
+                print(f"Error: Metadata not available for {self.name}. Cannot process new run.")
+                return
+
+            last_run_availability_time = self.metadata.get('last_run_availability_time')
+            if last_run_availability_time is None:
+                print(f"Error: last_run_availability_time not available for {self.name}. Cannot process new run.")
+                return
+
+            if datetime.now() - last_run_availability_time < timedelta(minutes=10):
                 print(f"Last run for {self.name} was available less than 10 minutes ago.")
                 print("To ensure data integrity, please wait a few more minutes before downloading.")
                 self.load_from_db()
                 if self.data: # Verify successful model load
                     self.is_valid = True
-            elif datetime.now() - self.metadata.get('last_run_initialisation_time') > timedelta(days=1):
-                print(f"Last run for {self.name} too old. Skipping.")
             else:
-                self.retrieve_data(config)
-                self.calculate_statistics()
-                if self.data: # Verify successful model load
-                    self.is_valid = True
-                    self.is_new = True # Indicate this is a recent downloaded run
-                self.save_to_db()
+                last_run_initialisation_time = self.metadata.get('last_run_initialisation_time')
+                if last_run_initialisation_time is None:
+                    print(f"Error: last_run_initialisation_time not available for {self.name}. Skipping.")
+                    return
+
+                if datetime.now() - last_run_initialisation_time > timedelta(days=1):
+                    print(f"Last run for {self.name} too old. Skipping.")
+                else:
+                    self.retrieve_data(config)
+                    self.calculate_statistics()
+                    if self.data: # Verify successful model load
+                        self.is_valid = True
+                        self.is_new = True # Indicate this is a recent downloaded run
+                    self.save_to_db()
 
     def check_if_new(self) -> bool:
         """
@@ -102,7 +115,8 @@ class WeatherModel:
             print(f"{key}: {value}")
 
     def retrieve_data(self, config: Dict[str, Any]) -> None:
-        """Retrieves the weather model data using the provided configuration.
+        """
+        Retrieves the weather model data using the provided configuration.
 
         Args:
 
@@ -183,6 +197,10 @@ class WeatherModel:
             print(f"No statistics available to export for {self.name}.")
             return
 
+        if self.metadata is None:
+            print(f"Error: Metadata not available for {self.name}. Cannot export statistics.")
+            return
+
         last_run = self.metadata.get('last_run_initialisation_time')
         if last_run is None:
             print(f"Error: Cannot determine last run time for {self.name}. Cannot export statistics.")
@@ -226,6 +244,10 @@ class WeatherModel:
 
     def save_to_db(self) -> None:
         """Saves the model's raw data and statistics to the database."""
+        if self.metadata is None:
+            print(f"Error: Metadata not available for {self.name}. Cannot save to database.")
+            return
+
         last_run = self.metadata.get('last_run_initialisation_time')
         if last_run is None:
             print(f"Error: Cannot determine last run time for {self.name}. Cannot save to database.")

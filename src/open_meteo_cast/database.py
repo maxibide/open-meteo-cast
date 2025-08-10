@@ -59,6 +59,29 @@ def create_tables():
         );
     """)
 
+    # Table for ensemble runs
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ensemble_runs (
+            ensemble_run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            creation_timestamp DATETIME NOT NULL,
+            model_runs_info TEXT NOT NULL
+        );
+    """)
+
+    # Table for ensemble statistics
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ensemble_statistics (
+            ensemble_stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ensemble_run_id INTEGER NOT NULL,
+            variable TEXT NOT NULL,
+            statistic TEXT NOT NULL,
+            forecast_timestamp DATETIME NOT NULL,
+            value REAL,
+            FOREIGN KEY (ensemble_run_id) REFERENCES ensemble_runs(ensemble_run_id) ON DELETE CASCADE,
+            UNIQUE(ensemble_run_id, variable, statistic, forecast_timestamp)
+        );
+    """)
+
     conn.commit()
     conn.close()
 
@@ -235,3 +258,49 @@ def save_statistics(conn: sqlite3.Connection, model_name: str, run_timestamp: da
             VALUES (?, ?, ?, ?, ?, ?)
         """, records)
     print(f"Successfully saved statistics to the database for model {model_name}.")
+
+def save_ensemble_run(conn: sqlite3.Connection, creation_timestamp: datetime, model_runs_info: str) -> int:
+    """
+    Saves an ensemble run entry to the database.
+
+    Returns:
+        The ID of the newly created ensemble run.
+    """
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO ensemble_runs (creation_timestamp, model_runs_info) VALUES (?, ?)",
+                   (creation_timestamp.isoformat(), model_runs_info))
+    conn.commit()
+    print(f"Ensemble run at {creation_timestamp} recorded.")
+    return cursor.lastrowid
+
+def save_ensemble_statistics(conn: sqlite3.Connection, ensemble_run_id: int, statistics_df: pd.DataFrame):
+    """
+    Saves calculated ensemble statistics to the database.
+    """
+    cursor = conn.cursor()
+    
+    # Reshape the dataframe from wide to long format
+    melted_df = statistics_df.reset_index().melt(
+        id_vars=['date'],
+        var_name='variable_statistic',
+        value_name='value'
+    )
+    melted_df.dropna(subset=['value'], inplace=True)
+
+    # Split 'variable_statistic' into 'variable' and 'statistic'
+    melted_df[['variable', 'statistic']] = melted_df['variable_statistic'].str.rsplit('_', n=1, expand=True)
+    
+    records = [
+        (ensemble_run_id, row['variable'], row['statistic'], row['date'].isoformat(), row['value'])
+        for _, row in melted_df.iterrows()
+    ]
+    
+    if not records:
+        return
+
+    cursor.executemany("""
+        INSERT INTO ensemble_statistics (ensemble_run_id, variable, statistic, forecast_timestamp, value)
+        VALUES (?, ?, ?, ?, ?)
+    """, records)
+    conn.commit()
+    print(f"Successfully saved ensemble statistics to the database for ensemble run {ensemble_run_id}.")

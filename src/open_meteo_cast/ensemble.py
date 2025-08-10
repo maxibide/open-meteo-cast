@@ -6,6 +6,8 @@ from .weather_model import WeatherModel
 
 
 from .formatting import format_statistics_dataframe
+from . import database
+import json
 
 class Ensemble:
     """
@@ -21,6 +23,7 @@ class Ensemble:
             config: The application configuration dictionary.
         """
         self.models = models
+        self.runs = [f"{model.name}_{model.metadata.get('last_run_availability_time')}" for model in self.models]
         print(f"Calculating ensemble from {[model.name for model in self.models]}")
         self.stats_df = self._calculate_ensemble_stats()
 
@@ -97,3 +100,31 @@ class Ensemble:
             A pandas DataFrame with the ensemble statistics.
         """
         return self.stats_df
+
+    def save_to_db(self):
+        """
+        Saves the ensemble statistics to the database.
+        """
+        if self.stats_df.empty:
+            print("No ensemble statistics to save to the database.")
+            return
+
+        conn = database.get_db_connection()
+        try:
+            # 1. Gather model runs info
+            model_runs_info_json = json.dumps(self.runs)
+
+            # 2. Save ensemble run and get the ID
+            creation_timestamp = datetime.now()
+            ensemble_run_id = database.save_ensemble_run(conn, creation_timestamp, model_runs_info_json)
+
+            # 3. Save ensemble statistics
+            database.save_ensemble_statistics(conn, ensemble_run_id, self.stats_df)
+
+            print(f"Ensemble statistics saved to database with run ID: {ensemble_run_id}")
+
+        except Exception as e:
+            conn.rollback()
+            print(f"Error saving ensemble statistics to the database: {e}")
+        finally:
+            conn.close()

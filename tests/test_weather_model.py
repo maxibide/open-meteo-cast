@@ -34,9 +34,11 @@ class TestWeatherModel:
 
     @pytest.fixture
     def mock_weather_model_instance(self, mock_config, mock_metadata):
-        with patch('src.open_meteo_cast.weather_model.retrieve_model_metadata') as mock_retrieve_metadata:
+        with patch('src.open_meteo_cast.weather_model.retrieve_model_metadata') as mock_retrieve_metadata,
+             patch.object(WeatherModel, 'load_from_db', return_value=None) as mock_load_from_db:
             mock_retrieve_metadata.return_value = mock_metadata
             model = WeatherModel("gfs025", mock_config)
+            model.load_from_db = mock_load_from_db
             return model
 
     def test_init(self, mock_weather_model_instance, mock_config, mock_metadata):
@@ -44,6 +46,7 @@ class TestWeatherModel:
         assert model.name == "gfs025"
         assert model.metadata_url == "http://dummy-url.com"
         assert model.metadata == mock_metadata
+        model.load_from_db.assert_called_once()
 
     def test_print_metadata(self, mock_weather_model_instance, capsys):
         model = mock_weather_model_instance
@@ -58,35 +61,30 @@ class TestWeatherModel:
 
     def test_check_if_new_first_run(self, mock_weather_model_instance, capsys):
         model = mock_weather_model_instance
-        with patch("builtins.open", mock_open()) as mocked_file:
-            with patch("json.dump") as mocked_json_dump:
-                result = model.check_if_new()
-                assert result is True
-                captured = capsys.readouterr()
-                assert "New model run detected for gfs025." in captured.out
-                mocked_json_dump.assert_called_once_with({'gfs025': '2023-03-15T12:00:00'}, mocked_file(), indent=4)
+        with patch('src.open_meteo_cast.weather_model.get_last_run_timestamp') as mock_get_last_run:
+            mock_get_last_run.return_value = None
+            result = model.check_if_new()
+            assert result is True
+            captured = capsys.readouterr()
+            assert "New model run detected for gfs025." in captured.out
 
     def test_check_if_new_newer_run(self, mock_weather_model_instance, capsys):
         model = mock_weather_model_instance
-        initial_content = {"gfs025": "2023-03-14T12:00:00"}
-        with patch("builtins.open", mock_open(read_data=json.dumps(initial_content))) as mocked_file:
-            with patch("json.dump") as mocked_json_dump:
-                result = model.check_if_new()
-                assert result is True
-                captured = capsys.readouterr()
-                assert "New model run detected for gfs025." in captured.out
-                mocked_json_dump.assert_called_once_with({'gfs025': '2023-03-15T12:00:00'}, mocked_file(), indent=4)
+        with patch('src.open_meteo_cast.weather_model.get_last_run_timestamp') as mock_get_last_run:
+            mock_get_last_run.return_value = datetime(2023, 3, 14, 12, 0, 0)
+            result = model.check_if_new()
+            assert result is True
+            captured = capsys.readouterr()
+            assert "New model run detected for gfs025." in captured.out
 
     def test_check_if_new_older_run(self, mock_weather_model_instance, capsys):
         model = mock_weather_model_instance
-        initial_content = {"gfs025": "2023-03-16T12:00:00"}
-        with patch("builtins.open", mock_open(read_data=json.dumps(initial_content))):
-            with patch("json.dump") as mocked_json_dump:
-                result = model.check_if_new()
-                assert result is False
-                captured = capsys.readouterr()
-                assert "No new model run for gfs025." in captured.out
-                mocked_json_dump.assert_not_called()
+        with patch('src.open_meteo_cast.weather_model.get_last_run_timestamp') as mock_get_last_run:
+            mock_get_last_run.return_value = datetime(2023, 3, 16, 12, 0, 0)
+            result = model.check_if_new()
+            assert result is False
+            captured = capsys.readouterr()
+            assert "No new model run for gfs025." in captured.out
 
     def test_init_no_metadata(self, mock_config):
         with patch('src.open_meteo_cast.weather_model.retrieve_model_metadata') as mock_retrieve_metadata:
@@ -104,19 +102,7 @@ class TestWeatherModel:
             captured = capsys.readouterr()
             assert "Error: Could not determine current run time for gfs025." in captured.out
 
-    def test_check_if_new_write_error(self, mock_weather_model_instance, capsys):
-        model = mock_weather_model_instance
-        m = mock_open()
-        m.side_effect = [
-            mock_open(read_data='{}').return_value,  # for the read
-            IOError("Disk full")  # for the write
-        ]
-        with patch('builtins.open', m):
-            result = model.check_if_new()
-            assert result is True
-            captured = capsys.readouterr()
-            assert "New model run detected for gfs025." in captured.out
-            assert "Error writing updated run time to last_run.json: Disk full" in captured.out
+    
 
     @patch('src.open_meteo_cast.weather_model.retrieve_model_variable')
     def test_retrieve_data(self, mock_retrieve_model_variable, mock_weather_model_instance, mock_config):

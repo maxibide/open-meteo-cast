@@ -1,7 +1,7 @@
 from typing import Any, Dict, Optional
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 from .database import get_db_connection, get_last_run_timestamp
@@ -20,11 +20,37 @@ class WeatherModel:
             model_name: The name of the model (e.g., 'gfs025').
             config: The application configuration dictionary.
         """
+        print(f"\n--- Processing model: {model_name} ---")
         self.name = model_name
+        self.is_valid = False
+        self.is_new = False
         self.metadata_url = config.get('api', {}).get('open-meteo', {}).get('ensemble_metadata', {}).get(model_name)
         self.metadata = retrieve_model_metadata(self.metadata_url)
+        self.print_metadata()
         self.data: Dict[str, Optional[pd.DataFrame]] = {}
         self.statistics: Dict[str, Optional[pd.DataFrame]] = {}
+
+        if not self.check_if_new():
+            self.load_from_db()
+            if self.data: # Verify successful model load
+                self.is_valid = True
+
+        else:
+            if datetime.now() - self.metadata.get('last_run_availability_time') < timedelta(minutes=10):
+                print(f"Last run for {self.name} was available less than 10 minutes ago.")
+                print("To ensure data integrity, please wait a few more minutes before downloading.")
+                self.load_from_db()
+                if self.data: # Verify successful model load
+                    self.is_valid = True
+            elif datetime.now() - self.metadata.get('last_run_initialisation_time') > timedelta(days=1):
+                print(f"Last run for {self.name} too old. Skipping.")
+            else:
+                self.retrieve_data(config)
+                self.calculate_statistics()
+                if self.data: # Verify successful model load
+                    self.is_valid = True
+                    self.is_new = True # Indicate this is a recent downloaded run
+                self.save_to_db()
 
     def check_if_new(self) -> bool:
         """
@@ -47,6 +73,61 @@ class WeatherModel:
         
         print(f"No new model run for {self.name}. Loading from database.")
         return False
+
+    def load_from_db(self) -> None:
+        """
+        Loads the latest available model data and statistics from the database.
+        """
+        print(f"Loading data from database for model {self.name}...")
+        last_run_timestamp = get_last_run_timestamp(self.name)
+        if last_run_timestamp is None:
+            print(f"No data found in database for model {self.name}.")
+            return
+
+        conn = get_db_connection()
+        
+        # Load raw data
+        raw_data_query = """
+            SELECT forecast_timestamp, member, variable, value
+            FROM raw_forecast_data
+            WHERE model_name = ? AND run_timestamp = ?
+        """
+        raw_df_long = pd.read_sql_query(raw_data_query, conn, params=(self.name, last_run_timestamp.isoformat()))
+        
+        if not raw_df_long.empty:
+            for variable in raw_df_long['variable'].unique():
+                variable_df = raw_df_long[raw_df_long['variable'] == variable]
+                # Pivot the table
+                pivot_df = variable_df.pivot(
+                    index='forecast_timestamp',
+                    columns='member',
+                    values='value'
+                ).add_prefix('member')
+                pivot_df.index.name = 'date'
+                self.data[variable] = pivot_df
+
+        # Load statistical data
+        stats_query = """
+            SELECT forecast_timestamp, variable, statistic, value
+            FROM statistical_forecasts
+            WHERE model_name = ? AND run_timestamp = ?
+        """
+        stats_df_long = pd.read_sql_query(stats_query, conn, params=(self.name, last_run_timestamp.isoformat()))
+        
+        if not stats_df_long.empty:
+            for variable in stats_df_long['variable'].unique():
+                variable_stats_df = stats_df_long[stats_df_long['variable'] == variable]
+                # Pivot the table
+                pivot_stats_df = variable_stats_df.pivot(
+                    index='forecast_timestamp',
+                    columns='statistic',
+                    values='value'
+                )
+                pivot_stats_df.index.name = 'date'
+                self.statistics[variable] = pivot_stats_df
+
+        conn.close()
+        print(f"Data for model {self.name} (run: {last_run_timestamp}) loaded successfully from database.")
 
     def print_metadata(self) -> None:
         """Formats and prints dictionary with model metadata."""
@@ -138,7 +219,7 @@ class WeatherModel:
             print(f"No statistics available to export for {self.name}.")
             return
 
-        last_run = self.last_run_time
+        last_run = self.metadata.get('last_run_initialisation_time')
         if last_run is None:
             print(f"Error: Cannot determine last run time for {self.name}. Cannot export statistics.")
             return
@@ -275,15 +356,30 @@ class WeatherModel:
         conn.close()
         print(f"Successfully saved statistics to the database for model {self.name}.")
 
-    @property
-    def last_run_time(self) -> Optional[datetime]:
-        """Returns the last run initialization time from the model metadata.
+    def save_to_db(self) -> None:
+        """Saves the model's raw data and statistics to the database."""
+        last_run = self.metadata.get('last_run_initialisation_time')
+        if last_run is None:
+            print(f"Error: Cannot determine last run time for {self.name}. Cannot save to database.")
+            return
 
-        Returns:
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-            A datetime object representing the last run initialization time, or None if not available.
+        try:
+            # Insert the forecast run entry
+            cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", (self.name, last_run.isoformat()))
+            conn.commit()
+            print(f"Forecast run for {self.name} at {last_run} recorded.")
 
-        """
-        if self.metadata:
-            return self.metadata.get('last_run_initialisation_time')
-        return None
+            # Save raw data and statistics
+            self._save_raw_data_to_db(self.name, last_run)
+            self._save_statistics_to_db(self.name, last_run)
+
+        except sqlite3.IntegrityError:
+            print(f"Data for model {self.name} and run {last_run} already exists in the database. Skipping.")
+        except Exception as e:
+            print(f"An error occurred while saving data to the database for {self.name}: {e}")
+            conn.rollback()  # Rollback changes on error
+        finally:
+            conn.close()

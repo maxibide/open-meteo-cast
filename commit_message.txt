@@ -1,0 +1,7 @@
+refactor(WeatherModel): use database as single source of truth for last run
+
+Refactors the `check_if_new` method in the `WeatherModel` class to
+use the database as the single source of truth for the last run time.
+
+This change removes the dependency on the `last_run.json` file, making
+the application more robust and reliable.

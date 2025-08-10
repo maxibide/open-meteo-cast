@@ -84,7 +84,7 @@ def retrieve_model_variable(config: Dict[str, Any], model_name: str, var_to_retr
         "hourly": var_to_retrieve,
         "models": [model_name],
         "timezone": "auto",
-        "forecast_hours": 72
+        "forecast_hours": config['forecast_hours'] + 12 # Adding 12 hours to ensure sufficient data coverage for less frequent models.
     }
 
     responses = openmeteo.weather_api(url, params=params)

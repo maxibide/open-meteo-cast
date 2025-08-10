@@ -29,3 +29,5 @@ models_used:
   - ecmwf_ifs025
   - ecmwf_aifs025
   - ukmo_global_ensemble_20km
+
+forecast_hours: 72

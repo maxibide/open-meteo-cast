@@ -1,7 +1,7 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from src.open_meteo_cast.weather_model import WeatherModel
 

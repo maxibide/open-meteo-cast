@@ -63,9 +63,9 @@ def main():
 
     # 7 Create and export ensemble
     
-    print("\n--- Creating and exporting ensemble ---")
-    ensemble = Ensemble(models)
-    ensemble.to_csv(output_dir, config)
+        print("\n--- Creating and exporting ensemble ---")
+        ensemble = Ensemble(models, config)
+        ensemble.to_csv(output_dir, config)
 
 if __name__ == "__main__":
     main()

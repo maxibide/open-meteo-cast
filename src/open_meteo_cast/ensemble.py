@@ -1,6 +1,5 @@
 from typing import List
 import pandas as pd
-import numpy as np
 import os
 from datetime import datetime
 from .weather_model import WeatherModel
@@ -13,16 +12,22 @@ class Ensemble:
     A class to combine statistics from multiple WeatherModels into a single ensemble.
     """
 
-    def __init__(self, models: List[WeatherModel]):
+    def __init__(self, models: List[WeatherModel], config: dict):
         """
         Initializes the Ensemble object with a list of WeatherModel objects.
 
         Args:
             models: A list of WeatherModel objects.
+            config: The application configuration dictionary.
         """
         self.models = models
         print(f"Calculating ensemble from {[model.name for model in self.models]}")
         self.stats_df = self._calculate_ensemble_stats()
+
+        # Trim the dataframe to start from the current hour
+        now = pd.Timestamp.now(tz=config['location']['timezone']).floor('h')
+        forecast_end = now + pd.Timedelta(hours=config['forecast_hours'])
+        self.stats_df = self.stats_df.loc[now:forecast_end]
 
     def _calculate_ensemble_stats(self) -> pd.DataFrame:
         """

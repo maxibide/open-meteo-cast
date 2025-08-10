@@ -3,11 +3,13 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch
 import os
+import pandas as pd
 
 from src.open_meteo_cast import database
 from src.open_meteo_cast.database import (
     create_tables,
     purge_old_runs,
+    load_raw_data, load_statistics, save_forecast_run, save_raw_data, save_statistics
 )
 
 DB_FILE = "test_forecasts.db"
@@ -94,3 +96,43 @@ def test_get_last_run_timestamp(test_db):
 
     # Test that None is returned for a model with no runs
     assert database.get_last_run_timestamp("icon") is None
+
+def test_save_and_load_data(test_db):
+    create_tables()
+    model_name = "test_model"
+    run_timestamp = datetime.now()
+
+    # Sample Data
+    raw_data = {
+        'temperature': pd.DataFrame({
+            'member1': [10, 20],
+            'member2': [12, 22]
+        }, index=pd.to_datetime(['2023-01-01', '2023-01-02']))
+    }
+    raw_data['temperature'].index.name = 'date'
+    statistics_data = {
+        'temperature': pd.DataFrame({
+            'p10': [10.2, 20.2],
+            'median': [11, 21]
+        }, index=pd.to_datetime(['2023-01-01', '2023-01-02']))
+    }
+    statistics_data['temperature'].index.name = 'date'
+
+    # Save Data
+    conn = sqlite3.connect(test_db)
+    save_forecast_run(conn, model_name, run_timestamp)
+    save_raw_data(conn, model_name, run_timestamp, raw_data)
+    save_statistics(conn, model_name, run_timestamp, statistics_data)
+    conn.commit()
+    conn.close()
+
+    # Load Data
+    loaded_raw = load_raw_data(model_name, run_timestamp)
+    loaded_stats = load_statistics(model_name, run_timestamp)
+
+    # Assertions
+    assert 'temperature' in loaded_raw
+    pd.testing.assert_frame_equal(raw_data['temperature'].astype('float64').sort_index(axis=1), loaded_raw['temperature'].sort_index(axis=1))
+
+    assert 'temperature' in loaded_stats
+    pd.testing.assert_frame_equal(statistics_data['temperature'].astype('float64').sort_index(axis=1), loaded_stats['temperature'].sort_index(axis=1))

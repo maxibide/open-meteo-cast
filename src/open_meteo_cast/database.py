@@ -116,3 +116,121 @@ def get_last_run_timestamp(model_name: str) -> datetime | None:
     if result and result[0]:
         return datetime.fromisoformat(result[0])
     return None
+
+def load_raw_data(model_name: str, run_timestamp: datetime) -> dict[str, pd.DataFrame]:
+    """
+    Loads raw forecast data for a specific model and run from the database.
+    """
+    conn = get_db_connection()
+    raw_data_query = """
+        SELECT forecast_timestamp, member, variable, value
+        FROM raw_forecast_data
+        WHERE model_name = ? AND run_timestamp = ?
+    """
+    raw_df_long = pd.read_sql_query(raw_data_query, conn, params=(model_name, run_timestamp.isoformat()), parse_dates=['forecast_timestamp'])
+    conn.close()
+
+    data = {}
+    if not raw_df_long.empty:
+        for variable in raw_df_long['variable'].unique():
+            variable_df = raw_df_long[raw_df_long['variable'] == variable]
+            pivot_df = variable_df.pivot(
+                index='forecast_timestamp',
+                columns='member',
+                values='value'
+            ).add_prefix('member')
+            pivot_df.index.name = 'date'
+            pivot_df.columns.name = None
+            data[variable] = pivot_df
+    return data
+
+def load_statistics(model_name: str, run_timestamp: datetime) -> dict[str, pd.DataFrame]:
+    """
+    Loads statistical forecast data for a specific model and run from the database.
+    """
+    conn = get_db_connection()
+    stats_query = """
+        SELECT forecast_timestamp, variable, statistic, value
+        FROM statistical_forecasts
+        WHERE model_name = ? AND run_timestamp = ?
+    """
+    stats_df_long = pd.read_sql_query(stats_query, conn, params=(model_name, run_timestamp.isoformat()), parse_dates=['forecast_timestamp'])
+    conn.close()
+
+    statistics = {}
+    if not stats_df_long.empty:
+        for variable in stats_df_long['variable'].unique():
+            variable_stats_df = stats_df_long[stats_df_long['variable'] == variable]
+            pivot_stats_df = variable_stats_df.pivot(
+                index='forecast_timestamp',
+                columns='statistic',
+                values='value'
+            )
+            pivot_stats_df.index.name = 'date'
+            pivot_stats_df.columns.name = None
+            statistics[variable] = pivot_stats_df
+    return statistics
+
+def save_forecast_run(conn: sqlite3.Connection, model_name: str, run_timestamp: datetime):
+    """
+    Saves a forecast run entry to the database.
+    """
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", (model_name, run_timestamp.isoformat()))
+    print(f"Forecast run for {model_name} at {run_timestamp} recorded.")
+
+def save_raw_data(conn: sqlite3.Connection, model_name: str, run_timestamp: datetime, data: dict[str, pd.DataFrame]):
+    """
+    Saves raw forecast data to the database.
+    """
+    cursor = conn.cursor()
+    for variable, data_df in data.items():
+        if data_df is None:
+            continue
+
+        melted_df = data_df.reset_index().melt(
+            id_vars=['date'],
+            var_name='member',
+            value_name='value'
+        )
+        melted_df.dropna(subset=['value'], inplace=True)
+        melted_df['member'] = melted_df['member'].str.extract(r'member(\d+)').fillna('0')
+
+        records = [
+            (model_name, run_timestamp.isoformat(), row['member'], variable, row['date'].isoformat(), row['value'])
+            for _, row in melted_df.iterrows()
+        ]
+        cursor.executemany("""
+            INSERT INTO raw_forecast_data (model_name, run_timestamp, member, variable, forecast_timestamp, value)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, records)
+    print(f"Successfully saved raw data to the database for model {model_name}.")
+
+def save_statistics(conn: sqlite3.Connection, model_name: str, run_timestamp: datetime, statistics: dict[str, pd.DataFrame]):
+    """
+    Saves calculated statistics to the database.
+    """
+    cursor = conn.cursor()
+    for variable, stats_df in statistics.items():
+        if stats_df is None or stats_df.empty:
+            continue
+
+        melted_df = stats_df.reset_index().melt(
+            id_vars=['date'],
+            var_name='statistic',
+            value_name='value'
+        )
+        melted_df.dropna(subset=['value'], inplace=True)
+
+        records = [
+            (model_name, run_timestamp.isoformat(), variable, row['statistic'], row['date'].isoformat(), row['value'])
+            for _, row in melted_df.iterrows()
+        ]
+        if not records:
+            continue
+
+        cursor.executemany("""
+            INSERT INTO statistical_forecasts (model_name, run_timestamp, variable, statistic, forecast_timestamp, value)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, records)
+    print(f"Successfully saved statistics to the database for model {model_name}.")

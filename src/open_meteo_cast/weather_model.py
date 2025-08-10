@@ -4,7 +4,8 @@ import os
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
-from .database import get_db_connection, get_last_run_timestamp
+import sqlite3
+from .database import get_db_connection, get_last_run_timestamp, load_raw_data, load_statistics, save_forecast_run, save_raw_data, save_statistics
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_variable
 from .statistics import calculate_percentiles, calculate_precipitation_statistics, calculate_octa_probabilities, calculate_wind_direction_probabilities, calculate_weather_code_probabilities
 
@@ -84,49 +85,9 @@ class WeatherModel:
             print(f"No data found in database for model {self.name}.")
             return
 
-        conn = get_db_connection()
-        
-        # Load raw data
-        raw_data_query = """
-            SELECT forecast_timestamp, member, variable, value
-            FROM raw_forecast_data
-            WHERE model_name = ? AND run_timestamp = ?
-        """
-        raw_df_long = pd.read_sql_query(raw_data_query, conn, params=(self.name, last_run_timestamp.isoformat()))
-        
-        if not raw_df_long.empty:
-            for variable in raw_df_long['variable'].unique():
-                variable_df = raw_df_long[raw_df_long['variable'] == variable]
-                # Pivot the table
-                pivot_df = variable_df.pivot(
-                    index='forecast_timestamp',
-                    columns='member',
-                    values='value'
-                ).add_prefix('member')
-                pivot_df.index.name = 'date'
-                self.data[variable] = pivot_df
+        self.data = load_raw_data(self.name, last_run_timestamp)
+        self.statistics = load_statistics(self.name, last_run_timestamp)
 
-        # Load statistical data
-        stats_query = """
-            SELECT forecast_timestamp, variable, statistic, value
-            FROM statistical_forecasts
-            WHERE model_name = ? AND run_timestamp = ?
-        """
-        stats_df_long = pd.read_sql_query(stats_query, conn, params=(self.name, last_run_timestamp.isoformat()))
-        
-        if not stats_df_long.empty:
-            for variable in stats_df_long['variable'].unique():
-                variable_stats_df = stats_df_long[stats_df_long['variable'] == variable]
-                # Pivot the table
-                pivot_stats_df = variable_stats_df.pivot(
-                    index='forecast_timestamp',
-                    columns='statistic',
-                    values='value'
-                )
-                pivot_stats_df.index.name = 'date'
-                self.statistics[variable] = pivot_stats_df
-
-        conn.close()
         print(f"Data for model {self.name} (run: {last_run_timestamp}) loaded successfully from database.")
 
     def print_metadata(self) -> None:
@@ -275,87 +236,6 @@ class WeatherModel:
         except IOError as e:
             print(f"Error exporting statistics to {filepath}: {e}")
 
-    def _save_raw_data_to_db(self, model_name: str, run_timestamp: datetime) -> None:
-        """Saves raw forecast data to the database."""
-        if not self.data:
-            print(f"No raw data to save for model {self.name}.")
-            return
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        for variable, data_df in self.data.items():
-            if data_df is None:
-                continue
-
-            # Melt the DataFrame to long format
-            melted_df = data_df.reset_index().melt(
-                id_vars=['date'],
-                var_name='member',
-                value_name='value'
-            )
-            
-            # Remove rows with missing values that would violate the NOT NULL constraint
-            melted_df.dropna(subset=['value'], inplace=True)
-            
-            # Extract member number from the 'member' column
-            melted_df['member'] = melted_df['member'].str.extract(r'member(\d+)').fillna('0')
-
-            records = [
-                (model_name, run_timestamp.isoformat(), row['member'], variable, row['date'].isoformat(), row['value'])
-                for _, row in melted_df.iterrows()
-            ]
-
-            cursor.executemany("""
-                INSERT INTO raw_forecast_data (model_name, run_timestamp, member, variable, forecast_timestamp, value)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, records)
-
-        conn.commit()
-        conn.close()
-        print(f"Successfully saved raw data to the database for model {self.name}.")
-
-    def _save_statistics_to_db(self, model_name: str, run_timestamp: datetime) -> None:
-        """Saves calculated statistics to the database."""
-        if not self.statistics:
-            print(f"No statistics to save for model {self.name}.")
-            return
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        for variable, stats_df in self.statistics.items():
-            if stats_df is None or stats_df.empty:
-                continue
-
-            # Melt the DataFrame to long format.
-            # The index is expected to be a DatetimeIndex named 'date'.
-            melted_df = stats_df.reset_index().melt(
-                id_vars=['date'],
-                var_name='statistic',
-                value_name='value'
-            )
-
-            # Remove rows with missing values.
-            melted_df.dropna(subset=['value'], inplace=True)
-
-            records = [
-                (model_name, run_timestamp.isoformat(), variable, row['statistic'], row['date'].isoformat(), row['value'])
-                for _, row in melted_df.iterrows()
-            ]
-
-            if not records:
-                continue
-
-            cursor.executemany("""
-                INSERT INTO statistical_forecasts (model_name, run_timestamp, variable, statistic, forecast_timestamp, value)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, records)
-
-        conn.commit()
-        conn.close()
-        print(f"Successfully saved statistics to the database for model {self.name}.")
-
     def save_to_db(self) -> None:
         """Saves the model's raw data and statistics to the database."""
         last_run = self.metadata.get('last_run_initialisation_time')
@@ -364,22 +244,17 @@ class WeatherModel:
             return
 
         conn = get_db_connection()
-        cursor = conn.cursor()
-
         try:
-            # Insert the forecast run entry
-            cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", (self.name, last_run.isoformat()))
+            conn.execute("BEGIN")
+            save_forecast_run(conn, self.name, last_run)
+            save_raw_data(conn, self.name, last_run, self.data)
+            save_statistics(conn, self.name, last_run, self.statistics)
             conn.commit()
-            print(f"Forecast run for {self.name} at {last_run} recorded.")
-
-            # Save raw data and statistics
-            self._save_raw_data_to_db(self.name, last_run)
-            self._save_statistics_to_db(self.name, last_run)
-
         except sqlite3.IntegrityError:
+            conn.rollback()
             print(f"Data for model {self.name} and run {last_run} already exists in the database. Skipping.")
         except Exception as e:
+            conn.rollback()
             print(f"An error occurred while saving data to the database for {self.name}: {e}")
-            conn.rollback()  # Rollback changes on error
         finally:
             conn.close()

@@ -1,5 +1,6 @@
 from typing import Any, Dict, Optional
 import os
+import logging
 from datetime import datetime, timedelta
 import pandas as pd
 import sqlite3
@@ -21,7 +22,7 @@ class WeatherModel:
             model_name: The name of the model (e.g., 'gfs025').
             config: The application configuration dictionary.
         """
-        print(f"\n--- Processing model: {model_name} ---")
+        logging.info(f"--- Processing model: {model_name} ---")
         self.name = model_name
         self.is_valid = False
         self.is_new = False
@@ -38,28 +39,28 @@ class WeatherModel:
 
         else:
             if self.metadata is None:
-                print(f"Error: Metadata not available for {self.name}. Cannot process new run.")
+                logging.error(f"Error: Metadata not available for {self.name}. Cannot process new run.")
                 return
 
             last_run_availability_time = self.metadata.get('last_run_availability_time')
             if last_run_availability_time is None:
-                print(f"Error: last_run_availability_time not available for {self.name}. Cannot process new run.")
+                logging.error(f"Error: last_run_availability_time not available for {self.name}. Cannot process new run.")
                 return
 
             if datetime.now() - last_run_availability_time < timedelta(minutes=10):
-                print(f"Last run for {self.name} was available less than 10 minutes ago.")
-                print("To ensure data integrity, please wait a few more minutes before downloading.")
+                logging.warning(f"Last run for {self.name} was available less than 10 minutes ago.")
+                logging.warning("To ensure data integrity, please wait a few more minutes before downloading.")
                 self.load_from_db()
                 if self.data: # Verify successful model load
                     self.is_valid = True
             else:
                 last_run_initialisation_time = self.metadata.get('last_run_initialisation_time')
                 if last_run_initialisation_time is None:
-                    print(f"Error: last_run_initialisation_time not available for {self.name}. Skipping.")
+                    logging.error(f"Error: last_run_initialisation_time not available for {self.name}. Skipping.")
                     return
 
                 if datetime.now() - last_run_initialisation_time > timedelta(days=1):
-                    print(f"Last run for {self.name} too old. Skipping.")
+                    logging.warning(f"Last run for {self.name} too old. Skipping.")
                 else:
                     self.retrieve_data(config)
                     self.calculate_statistics()
@@ -73,46 +74,46 @@ class WeatherModel:
         Checks if the model run is newer than the last recorded run in the database.
         """
         if self.metadata is None:
-            print(f"Error: Metadata not available for {self.name}. Cannot check for new run.")
+            logging.error(f"Error: Metadata not available for {self.name}. Cannot check for new run.")
             return False
 
         current_run_time = self.metadata.get('last_run_initialisation_time')
         if current_run_time is None:
-            print(f"Error: Could not determine current run time for {self.name}.")
+            logging.error(f"Error: Could not determine current run time for {self.name}.")
             return False
 
         last_run_from_db = get_last_run_timestamp(self.name)
 
         if last_run_from_db is None or current_run_time > last_run_from_db:
-            print(f"New model run detected for {self.name}.")
+            logging.info(f"New model run detected for {self.name}.")
             return True
         
-        print(f"No new model run for {self.name}. Loading from database.")
+        logging.info(f"No new model run for {self.name}. Loading from database.")
         return False
 
     def load_from_db(self) -> None:
         """
         Loads the latest available model data and statistics from the database.
         """
-        print(f"Loading data from database for model {self.name}...")
+        logging.info(f"Loading data from database for model {self.name}...")
         last_run_timestamp = get_last_run_timestamp(self.name)
         if last_run_timestamp is None:
-            print(f"No data found in database for model {self.name}.")
+            logging.warning(f"No data found in database for model {self.name}.")
             return
 
         self.data = load_raw_data(self.name, last_run_timestamp)
         self.statistics = load_statistics(self.name, last_run_timestamp)
 
-        print(f"Data for model {self.name} (run: {last_run_timestamp}) loaded successfully from database.")
+        logging.info(f"Data for model {self.name} (run: {last_run_timestamp}) loaded successfully from database.")
 
     def print_metadata(self) -> None:
         """Formats and prints dictionary with model metadata."""
-        print(f"Name: {self.name}")
+        logging.info(f"Name: {self.name}")
         if self.metadata is None:
-            print(f"Error: Metadata not available for {self.name}.")
+            logging.error(f"Error: Metadata not available for {self.name}.")
             return
         for key, value in self.metadata.items():
-            print(f"{key}: {value}")
+            logging.info(f"{key}: {value}")
 
     def retrieve_data(self, config: Dict[str, Any]) -> None:
         """
@@ -123,7 +124,7 @@ class WeatherModel:
             config: The application configuration dictionary.
 
         """
-        print(f"Retrieving data for {self.name}")
+        logging.info(f"Retrieving data for {self.name}")
         variables = ["temperature_2m", "dew_point_2m", "pressure_msl", "temperature_850hPa", "precipitation",
                      "snowfall", "cloud_cover", "wind_speed_10m", "wind_gusts_10m", "wind_direction_10m",
                      "cape", "weather_code"]
@@ -136,11 +137,11 @@ class WeatherModel:
     def print_data(self) -> None:
         """Prints the retrieved weather data."""
         for variable, data_df in self.data.items():
-            print(f"\nData for {variable}:")
+            logging.info(f"Data for {variable}:")
             if data_df is not None:
-                print(data_df)
+                logging.info(data_df)
             else:
-                print(f"No data available for {variable}.")
+                logging.warning(f"No data available for {variable}.")
 
     def calculate_statistics(self) -> None:
         """
@@ -151,7 +152,7 @@ class WeatherModel:
         p10, median, and p90 percentiles.
         """
         if not self.data:
-            print(f"Error: No data available to calculate statistics for {self.name}.")
+            logging.error(f"Error: No data available to calculate statistics for {self.name}.")
             return
 
         for variable, data_df in self.data.items():
@@ -169,7 +170,7 @@ class WeatherModel:
                 else:
                     self.statistics[variable] = calculate_percentiles(data_df)
             else:
-                print(f"Warning: No data for variable '{variable}' to calculate statistics.")
+                logging.warning(f"Warning: No data for variable '{variable}' to calculate statistics.")
             
     def print_statistics(self) -> None:
         """
@@ -177,10 +178,10 @@ class WeatherModel:
         """
         if self.statistics is not None:
             for variable in self.statistics.keys():
-                print(f"\nStatistics for {self.name} {variable}:")
-                print(self.statistics[variable])
+                logging.info(f"Statistics for {self.name} {variable}:")
+                logging.info(self.statistics[variable])
         else:
-            print(f"No statistics available for {self.name}.")
+            logging.warning(f"No statistics available for {self.name}.")
 
     def export_statistics_to_csv(self, output_dir: str = 'output', config: Dict = {}) -> None:
         """
@@ -194,16 +195,16 @@ class WeatherModel:
             config: The application configuration dictionary.
         """
         if not self.statistics:
-            print(f"No statistics available to export for {self.name}.")
+            logging.warning(f"No statistics available to export for {self.name}.")
             return
 
         if self.metadata is None:
-            print(f"Error: Metadata not available for {self.name}. Cannot export statistics.")
+            logging.error(f"Error: Metadata not available for {self.name}. Cannot export statistics.")
             return
 
         last_run = self.metadata.get('last_run_initialisation_time')
         if last_run is None:
-            print(f"Error: Cannot determine last run time for {self.name}. Cannot export statistics.")
+            logging.error(f"Error: Cannot determine last run time for {self.name}. Cannot export statistics.")
             return
 
         timestamp_str = last_run.strftime('%Y%m%dT%H%M%S')
@@ -213,7 +214,7 @@ class WeatherModel:
 
         for variable, stats_df in self.statistics.items():
             if stats_df is None:
-                print(f"No statistics to export for variable '{variable}'.")
+                logging.warning(f"No statistics to export for variable '{variable}'.")
                 continue
 
             # Add prefix to columns to identify the variable
@@ -225,7 +226,7 @@ class WeatherModel:
                 all_stats_df = all_stats_df.join(prefixed_stats_df, how='outer')
 
         if all_stats_df.empty:
-            print(f"No statistics to export for model {self.name}.")
+            logging.warning(f"No statistics to export for model {self.name}.")
             return
 
         filename = f"{self.name}_{timestamp_str}.csv"
@@ -238,19 +239,19 @@ class WeatherModel:
         
         try:
             export_df.to_csv(filepath, index=True)
-            print(f"Successfully exported statistics to {filepath}")
+            logging.info(f"Successfully exported statistics to {filepath}")
         except IOError as e:
-            print(f"Error exporting statistics to {filepath}: {e}")
+            logging.error(f"Error exporting statistics to {filepath}: {e}")
 
     def save_to_db(self) -> None:
         """Saves the model's raw data and statistics to the database."""
         if self.metadata is None:
-            print(f"Error: Metadata not available for {self.name}. Cannot save to database.")
+            logging.error(f"Error: Metadata not available for {self.name}. Cannot save to database.")
             return
 
         last_run = self.metadata.get('last_run_initialisation_time')
         if last_run is None:
-            print(f"Error: Cannot determine last run time for {self.name}. Cannot save to database.")
+            logging.error(f"Error: Cannot determine last run time for {self.name}. Cannot save to database.")
             return
 
         conn = get_db_connection()
@@ -262,9 +263,9 @@ class WeatherModel:
             conn.commit()
         except sqlite3.IntegrityError:
             conn.rollback()
-            print(f"Data for model {self.name} and run {last_run} already exists in the database. Skipping.")
+            logging.warning(f"Data for model {self.name} and run {last_run} already exists in the database. Skipping.")
         except Exception as e:
             conn.rollback()
-            print(f"An error occurred while saving data to the database for {self.name}: {e}")
+            logging.error(f"An error occurred while saving data to the database for {self.name}: {e}")
         finally:
             conn.close()

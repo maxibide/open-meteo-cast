@@ -1,10 +1,13 @@
 import pandas as pd
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from src.open_meteo_cast.ensemble import Ensemble
 
-def test_to_html_table_with_data():
+@patch('src.open_meteo_cast.ensemble.logging')
+def test_to_html_table_with_data(mock_logging):
     # Create a mock WeatherModel
     mock_model = MagicMock()
+    mock_model.name = "test_model"
+    mock_model.metadata = {'last_run_availability_time': '2025-08-15T12:00:00'}
 
     # Create a sample statistics DataFrame
     data = {

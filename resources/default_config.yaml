@@ -31,3 +31,8 @@ models_used:
   - ukmo_global_ensemble_20km
 
 forecast_hours: 72
+
+logging:
+  level: INFO
+  file: open-meteo-cast.log
+  console: true

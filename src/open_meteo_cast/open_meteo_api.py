@@ -1,6 +1,7 @@
 from typing import Dict, Optional, Any
 import requests
 import json
+import logging
 from datetime import datetime
 
 import openmeteo_requests
@@ -45,10 +46,10 @@ def retrieve_model_metadata(url: str, timeout: int = 30) -> Optional[Dict[str, A
                     pass
         return json_metadata
     except requests.exceptions.RequestException as e:
-        print(f"Error retrieving data from {url}: {e}")
+        logging.error(f"Error retrieving data from {url}: {e}")
         return None
     except json.JSONDecodeError as e:
-        print(f"Error decoding JSON from {url}: {e}")
+        logging.error(f"Error decoding JSON from {url}: {e}")
         return None
 
 def retrieve_model_variable(config: Dict[str, Any], model_name: str, var_to_retrieve: str) -> pd.DataFrame:
@@ -90,15 +91,11 @@ def retrieve_model_variable(config: Dict[str, Any], model_name: str, var_to_retr
     responses = openmeteo.weather_api(url, params=params)
 
     if not responses:
-        print("No data received from Open-Meteo API.")
+        logging.warning("No data received from Open-Meteo API.")
         return None
 
     # Process first location. Add a for-loop for multiple locations or weather models
     response = responses[0]
-    # print(f"Coordinates {response.Latitude()}°N {response.Longitude()}°E")
-    # print(f"Elevation {response.Elevation()} m asl")
-    # print(f"Timezone {response.Timezone()}{response.TimezoneAbbreviation()}")
-    # print(f"Timezone difference to GMT+0 {response.UtcOffsetSeconds()} s")
 
     # Process hourly data
     hourly = response.Hourly()
@@ -119,7 +116,7 @@ def retrieve_model_variable(config: Dict[str, Any], model_name: str, var_to_retr
     }
 
     if var_to_retrieve not in variable_filters:
-        print(f"Variable {var_to_retrieve} not supported")
+        logging.error(f"Variable {var_to_retrieve} not supported")
         return
 
     hourly_variable = filter(variable_filters[var_to_retrieve], hourly_variables)
@@ -137,5 +134,4 @@ def retrieve_model_variable(config: Dict[str, Any], model_name: str, var_to_retr
         hourly_data[f"{var_to_retrieve}_member{member}"] = variable.ValuesAsNumpy()
 
     hourly_dataframe = pd.DataFrame(data = hourly_data)
-    # print(hourly_dataframe)
     return hourly_dataframe

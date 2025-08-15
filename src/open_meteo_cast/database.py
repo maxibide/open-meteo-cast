@@ -1,4 +1,5 @@
 import sqlite3
+import logging
 from pathlib import Path
 import pandas as pd
 from datetime import datetime, timedelta
@@ -87,9 +88,9 @@ def create_tables():
 
 if __name__ == '__main__':
     # This allows us to initialize the database by running the script directly
-    print(f"Initializing database at {DB_PATH}...")
+    logging.info(f"Initializing database at {DB_PATH}...")
     create_tables()
-    print("Database and tables created successfully.")
+    logging.info("Database and tables created successfully.")
 
 def purge_old_runs(retention_days: int):
     """Removes forecast runs and their associated data older than the specified retention period."""
@@ -104,18 +105,18 @@ def purge_old_runs(retention_days: int):
     old_runs = cursor.fetchall()
 
     if not old_runs:
-        print("No old forecast runs to purge.")
+        logging.info("No old forecast runs to purge.")
         conn.close()
         return
 
-    print(f"Found {len(old_runs)} old run(s) to purge.")
+    logging.info(f"Found {len(old_runs)} old run(s) to purge.")
 
     # Delete the old forecast runs. Associated data will be deleted automatically due to ON DELETE CASCADE.
     cursor.executemany("DELETE FROM forecast_runs WHERE model_name = ? AND run_timestamp = ?", old_runs)
 
     conn.commit()
     conn.close()
-    print(f"Successfully purged {len(old_runs)} old forecast run(s).")
+    logging.info(f"Successfully purged {len(old_runs)} old forecast run(s).")
 
 
 def get_last_run_timestamp(model_name: str) -> Union[datetime, None]:
@@ -205,7 +206,7 @@ def save_forecast_run(conn: sqlite3.Connection, model_name: str, run_timestamp: 
     """
     cursor = conn.cursor()
     cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", (model_name, int(run_timestamp.timestamp())))
-    print(f"Forecast run for {model_name} at {run_timestamp} recorded.")
+    logging.info(f"Forecast run for {model_name} at {run_timestamp} recorded.")
 
 def save_raw_data(conn: sqlite3.Connection, model_name: str, run_timestamp: datetime, data: dict[str, pd.DataFrame]):
     """
@@ -232,7 +233,7 @@ def save_raw_data(conn: sqlite3.Connection, model_name: str, run_timestamp: date
             INSERT INTO raw_forecast_data (model_name, run_timestamp, member, variable, forecast_timestamp, value)
             VALUES (?, ?, ?, ?, ?, ?)
         """, records)
-    print(f"Successfully saved raw data to the database for model {model_name}.")
+    logging.info(f"Successfully saved raw data to the database for model {model_name}.")
 
 def save_statistics(conn: sqlite3.Connection, model_name: str, run_timestamp: datetime, statistics: dict[str, pd.DataFrame]):
     """
@@ -261,7 +262,7 @@ def save_statistics(conn: sqlite3.Connection, model_name: str, run_timestamp: da
             INSERT INTO statistical_forecasts (model_name, run_timestamp, variable, statistic, forecast_timestamp, value)
             VALUES (?, ?, ?, ?, ?, ?)
         """, records)
-    print(f"Successfully saved statistics to the database for model {model_name}.")
+    logging.info(f"Successfully saved statistics to the database for model {model_name}.")
 
 def save_ensemble_run(conn: sqlite3.Connection, creation_timestamp: datetime, model_runs_info: str) -> Optional[int]:
     """
@@ -274,7 +275,7 @@ def save_ensemble_run(conn: sqlite3.Connection, creation_timestamp: datetime, mo
     cursor.execute("INSERT INTO ensemble_runs (creation_timestamp, model_runs_info) VALUES (?, ?)",
                    (int(creation_timestamp.timestamp()), model_runs_info))
     conn.commit()
-    print(f"Ensemble run at {creation_timestamp} recorded.")
+    logging.info(f"Ensemble run at {creation_timestamp} recorded.")
     return cursor.lastrowid
 
 def save_ensemble_statistics(conn: sqlite3.Connection, ensemble_run_id: int, statistics_df: pd.DataFrame):
@@ -307,4 +308,4 @@ def save_ensemble_statistics(conn: sqlite3.Connection, ensemble_run_id: int, sta
         VALUES (?, ?, ?, ?, ?)
     """, records)
     conn.commit()
-    print(f"Successfully saved ensemble statistics to the database for ensemble run {ensemble_run_id}.")
+    logging.info(f"Successfully saved ensemble statistics to the database for ensemble run {ensemble_run_id}.")

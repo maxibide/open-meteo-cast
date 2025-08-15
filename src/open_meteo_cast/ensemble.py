@@ -1,6 +1,7 @@
 from typing import List
 import pandas as pd
 import os
+import logging
 from datetime import datetime
 from .weather_model import WeatherModel
 
@@ -24,7 +25,7 @@ class Ensemble:
         """
         self.models = models
         self.runs = [f"{model.name}_{model.metadata.get('last_run_availability_time', 'unknown') if model.metadata else 'unknown'}" for model in self.models]
-        print(f"Calculating ensemble from {[model.name for model in self.models]}")
+        logging.info(f"Calculating ensemble from {[model.name for model in self.models]}")
         self.stats_df = self._calculate_ensemble_stats()
 
         # Trim the dataframe to start from the current hour
@@ -72,7 +73,7 @@ class Ensemble:
             config: The application configuration dictionary.
         """
         if self.stats_df.empty:
-            print("No ensemble statistics to export.")
+            logging.warning("No ensemble statistics to export.")
             return
 
         # Use the current time for the timestamp
@@ -88,9 +89,9 @@ class Ensemble:
 
         try:
             export_df.to_csv(filepath, index=True)
-            print(f"Successfully exported ensemble statistics to {filepath}")
+            logging.info(f"Successfully exported ensemble statistics to {filepath}")
         except IOError as e:
-            print(f"Error exporting ensemble statistics to {filepath}: {e}")
+            logging.error(f"Error exporting ensemble statistics to {filepath}: {e}")
 
     def get_ensemble_stats(self) -> pd.DataFrame:
         """
@@ -106,7 +107,7 @@ class Ensemble:
         Saves the ensemble statistics to the database.
         """
         if self.stats_df.empty:
-            print("No ensemble statistics to save to the database.")
+            logging.warning("No ensemble statistics to save to the database.")
             return
 
         conn = database.get_db_connection()
@@ -121,11 +122,11 @@ class Ensemble:
             # 3. Save ensemble statistics
             if ensemble_run_id:
                 database.save_ensemble_statistics(conn, ensemble_run_id, self.stats_df)
-                print(f"Ensemble statistics saved to database with run ID: {ensemble_run_id}")
+                logging.info(f"Ensemble statistics saved to database with run ID: {ensemble_run_id}")
 
         except Exception as e:
             conn.rollback()
-            print(f"Error saving ensemble statistics to the database: {e}")
+            logging.error(f"Error saving ensemble statistics to the database: {e}")
         finally:
             conn.close()
 

@@ -94,7 +94,8 @@ def test_load_from_db(mock_check_if_new, mock_load_statistics, mock_load_raw_dat
 @patch('src.open_meteo_cast.weather_model.WeatherModel.check_if_new', return_value=True)
 @patch('src.open_meteo_cast.weather_model.retrieve_model_variable')
 @patch('src.open_meteo_cast.weather_model.WeatherModel.calculate_statistics')
-def test_save_to_db(mock_calculate_statistics, mock_retrieve_model_variable, mock_check_if_new, mock_save_statistics, mock_save_raw_data, mock_save_forecast_run, mock_get_db_connection, mock_retrieve_metadata, mock_datetime, mock_logging, mock_config, mock_metadata):
+@patch('importlib.metadata.version', return_value="0.1.0")
+def test_save_to_db(mock_version, mock_calculate_statistics, mock_retrieve_model_variable, mock_check_if_new, mock_save_statistics, mock_save_raw_data, mock_save_forecast_run, mock_get_db_connection, mock_retrieve_metadata, mock_datetime, mock_logging, mock_config, mock_metadata):
     mock_retrieve_metadata.return_value = mock_metadata
     mock_datetime.now.return_value = datetime(2023, 3, 15, 12, 15, 0) # 15 minutes after init
     
@@ -110,6 +111,6 @@ def test_save_to_db(mock_calculate_statistics, mock_retrieve_model_variable, moc
         model.save_to_db()
 
         mock_get_db_connection.assert_called_once()
-        mock_save_forecast_run.assert_called_with(mock_get_db_connection.return_value, "gfs025", last_run)
+        mock_save_forecast_run.assert_called_with(mock_get_db_connection.return_value, "gfs025", last_run, "0.1.0")
         mock_save_raw_data.assert_called_with(mock_get_db_connection.return_value, "gfs025", last_run, model.data)
         mock_save_statistics.assert_called_with(mock_get_db_connection.return_value, "gfs025", last_run, model.statistics)

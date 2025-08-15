@@ -9,6 +9,7 @@ from .weather_model import WeatherModel
 from .formatting import format_statistics_dataframe
 from . import database
 import json
+import importlib.metadata
 
 class Ensemble:
     """
@@ -117,7 +118,8 @@ class Ensemble:
 
             # 2. Save ensemble run and get the ID
             creation_timestamp = datetime.now()
-            ensemble_run_id = database.save_ensemble_run(conn, creation_timestamp, model_runs_info_json)
+            version = importlib.metadata.version("open-meteo-cast")
+            ensemble_run_id = database.save_ensemble_run(conn, creation_timestamp, model_runs_info_json, version)
 
             # 3. Save ensemble statistics
             if ensemble_run_id:

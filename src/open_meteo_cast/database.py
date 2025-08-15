@@ -26,6 +26,7 @@ def create_tables():
         CREATE TABLE IF NOT EXISTS forecast_runs (
             model_name TEXT NOT NULL,
             run_timestamp INTEGER NOT NULL,
+            version TEXT NOT NULL,
             PRIMARY KEY (model_name, run_timestamp)
         );
     """)
@@ -65,6 +66,7 @@ def create_tables():
         CREATE TABLE IF NOT EXISTS ensemble_runs (
             ensemble_run_id INTEGER PRIMARY KEY AUTOINCREMENT,
             creation_timestamp INTEGER NOT NULL,
+            version TEXT NOT NULL,
             model_runs_info TEXT NOT NULL
         );
     """)
@@ -200,12 +202,12 @@ def load_statistics(model_name: str, run_timestamp: datetime) -> dict[str, pd.Da
             statistics[variable] = pivot_stats_df
     return statistics
 
-def save_forecast_run(conn: sqlite3.Connection, model_name: str, run_timestamp: datetime):
+def save_forecast_run(conn: sqlite3.Connection, model_name: str, run_timestamp: datetime, version: str):
     """
     Saves a forecast run entry to the database.
     """
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", (model_name, int(run_timestamp.timestamp())))
+    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp, version) VALUES (?, ?, ?)", (model_name, int(run_timestamp.timestamp()), version))
     logging.info(f"Forecast run for {model_name} at {run_timestamp} recorded.")
 
 def save_raw_data(conn: sqlite3.Connection, model_name: str, run_timestamp: datetime, data: dict[str, pd.DataFrame]):
@@ -264,7 +266,7 @@ def save_statistics(conn: sqlite3.Connection, model_name: str, run_timestamp: da
         """, records)
     logging.info(f"Successfully saved statistics to the database for model {model_name}.")
 
-def save_ensemble_run(conn: sqlite3.Connection, creation_timestamp: datetime, model_runs_info: str) -> Optional[int]:
+def save_ensemble_run(conn: sqlite3.Connection, creation_timestamp: datetime, model_runs_info: str, version: str) -> Optional[int]:
     """
     Saves an ensemble run entry to the database.
 
@@ -272,8 +274,8 @@ def save_ensemble_run(conn: sqlite3.Connection, creation_timestamp: datetime, mo
         The ID of the newly created ensemble run.
     """
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO ensemble_runs (creation_timestamp, model_runs_info) VALUES (?, ?)",
-                   (int(creation_timestamp.timestamp()), model_runs_info))
+    cursor.execute("INSERT INTO ensemble_runs (creation_timestamp, model_runs_info, version) VALUES (?, ?, ?)",
+                   (int(creation_timestamp.timestamp()), model_runs_info, version))
     conn.commit()
     logging.info(f"Ensemble run at {creation_timestamp} recorded.")
     return cursor.lastrowid

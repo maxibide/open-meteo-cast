@@ -37,6 +37,10 @@ def test_create_tables(test_db):
     assert cursor.fetchone() is not None
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='statistical_forecasts'")
     assert cursor.fetchone() is not None
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ensemble_runs'")
+    assert cursor.fetchone() is not None
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ensemble_statistics'")
+    assert cursor.fetchone() is not None
     conn.close()
 
 def test_purge_old_runs(test_db):
@@ -49,8 +53,8 @@ def test_purge_old_runs(test_db):
     new_run_time = now - timedelta(days=10)
 
     # Insert an old run and a new run
-    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", ("gfs", int(old_run_time.timestamp())))
-    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", ("gfs", int(new_run_time.timestamp())))
+    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp, version) VALUES (?, ?, ?)", ("gfs", int(old_run_time.timestamp()), "0.1.0"))
+    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp, version) VALUES (?, ?, ?)", ("gfs", int(new_run_time.timestamp()), "0.1.0"))
     
     conn.commit()
     conn.close()
@@ -78,9 +82,9 @@ def test_get_last_run_timestamp(test_db):
     ecmwf_time = datetime.now() - timedelta(hours=6)
 
     # Insert multiple runs for different models
-    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", ("gfs", int(gfs_time1.timestamp())))
-    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", ("gfs", int(gfs_time2.timestamp())))
-    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", ("ecmwf", int(ecmwf_time.timestamp())))
+    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp, version) VALUES (?, ?, ?)", ("gfs", int(gfs_time1.timestamp()), "0.1.0"))
+    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp, version) VALUES (?, ?, ?)", ("gfs", int(gfs_time2.timestamp()), "0.1.0"))
+    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp, version) VALUES (?, ?, ?)", ("ecmwf", int(ecmwf_time.timestamp()), "0.1.0"))
     conn.commit()
     conn.close()
 
@@ -120,7 +124,7 @@ def test_save_and_load_data(test_db):
 
     # Save Data
     conn = sqlite3.connect(test_db)
-    save_forecast_run(conn, model_name, run_timestamp)
+    save_forecast_run(conn, model_name, run_timestamp, "0.1.0")
     save_raw_data(conn, model_name, run_timestamp, raw_data)
     save_statistics(conn, model_name, run_timestamp, statistics_data)
     conn.commit()

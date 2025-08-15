@@ -56,6 +56,15 @@ def main():
     # Setup logging
     setup_logging(config)
 
+    # Log version
+    try:
+        import importlib.metadata
+        version = importlib.metadata.version("open-meteo-cast")
+        logging.info(f"Starting Open-Meteo-Cast version {version}")
+    except importlib.metadata.PackageNotFoundError:
+        logging.warning("Starting Open-Meteo-Cast (version not found)")
+
+
     # 2. Initialize database
     database.create_tables()
 

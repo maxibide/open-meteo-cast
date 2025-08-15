@@ -5,7 +5,7 @@ location:
   timezone: "America/Argentina/Buenos_Aires"
 
 database:
-  retention_days: 30
+  retention_days: 7
 
 api:
   open-meteo:

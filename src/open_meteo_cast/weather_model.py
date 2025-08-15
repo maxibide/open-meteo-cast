@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timedelta
 import pandas as pd
 import sqlite3
+import importlib.metadata
 from .database import get_db_connection, get_last_run_timestamp, load_raw_data, load_statistics, save_forecast_run, save_raw_data, save_statistics
 from .open_meteo_api import retrieve_model_metadata, retrieve_model_variable
 from .statistics import calculate_percentiles, calculate_precipitation_statistics, calculate_octa_probabilities, calculate_wind_direction_probabilities, calculate_weather_code_probabilities
@@ -256,8 +257,9 @@ class WeatherModel:
 
         conn = get_db_connection()
         try:
+            version = importlib.metadata.version("open-meteo-cast")
             conn.execute("BEGIN")
-            save_forecast_run(conn, self.name, last_run)
+            save_forecast_run(conn, self.name, last_run, version)
             save_raw_data(conn, self.name, last_run, self.data)
             save_statistics(conn, self.name, last_run, self.statistics)
             conn.commit()

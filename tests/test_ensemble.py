@@ -1,6 +1,8 @@
 import pandas as pd
 from unittest.mock import MagicMock, patch
 from src.open_meteo_cast.ensemble import Ensemble
+from src.open_meteo_cast import database
+from datetime import datetime
 
 @patch('src.open_meteo_cast.ensemble.logging')
 def test_to_html_table_with_data(mock_logging):
@@ -36,3 +38,36 @@ def test_to_html_table_with_data(mock_logging):
     assert '50%' in html
     assert '2/8 (90%)' in html
     assert 'N (80%)' in html
+
+@patch('src.open_meteo_cast.ensemble.database.get_db_connection')
+@patch('src.open_meteo_cast.ensemble.database.save_ensemble_run')
+@patch('src.open_meteo_cast.ensemble.database.save_ensemble_statistics')
+@patch('importlib.metadata.version', return_value="0.1.0")
+def test_save_to_db(mock_version, mock_save_stats, mock_save_run, mock_get_conn):
+    # Create a mock WeatherModel
+    mock_model = MagicMock()
+    mock_model.name = "test_model"
+    mock_model.metadata = {'last_run_availability_time': '2025-08-15T12:00:00'}
+
+    # Create a sample statistics DataFrame
+    data = {
+        'temperature_2m_median': [10, 12],
+    }
+    index = pd.to_datetime(['2025-08-14 12:00:00', '2025-08-14 13:00:00'], utc=True)
+    stats_df = pd.DataFrame(data, index=index)
+
+    # Create a mock Ensemble object
+    ensemble = Ensemble(models=[mock_model], config={'location': {'timezone': 'UTC'}, 'forecast_hours': 72})
+    ensemble.stats_df = stats_df
+
+    # Call save_to_db
+    ensemble.save_to_db()
+
+    # Assertions
+    mock_get_conn.assert_called_once()
+    mock_save_run.assert_called_once()
+    mock_save_stats.assert_called_once()
+
+    # Check the arguments passed to save_ensemble_run
+    args, kwargs = mock_save_run.call_args
+    assert args[3] == "0.1.0"

@@ -128,3 +128,130 @@ class Ensemble:
             print(f"Error saving ensemble statistics to the database: {e}")
         finally:
             conn.close()
+
+    def _format_cloud_cover(self, row):
+        # Extract cloud cover probabilities
+        cloud_cover_probs = {col: row[col] for col in row.index if 'cloud_cover_octa_' in col}
+        if not cloud_cover_probs:
+            return ""
+        
+        # Sort by probability
+        sorted_probs = sorted(cloud_cover_probs.items(), key=lambda item: item[1], reverse=True)
+        
+        # Check if the highest probability is > 70%
+        if sorted_probs[0][1] > 0.7:
+            octa = sorted_probs[0][0].split('_')[-2]
+            prob = sorted_probs[0][1]
+            return f"{octa}/8 ({prob:.0%})"
+        else:
+            # Return the two most probable
+            return_str = []
+            for i in range(min(2, len(sorted_probs))):
+                octa = sorted_probs[i][0].split('_')[-2]
+                prob = sorted_probs[i][1]
+                return_str.append(f"{octa}/8 ({prob:.0%})")
+            return " ".join(return_str)
+
+    def _format_wind_direction(self, row):
+        # Extract wind direction probabilities
+        wind_dir_probs = {col: row[col] for col in row.index if 'wind_direction_10m_' in col and col.endswith('_prob')}
+        if not wind_dir_probs:
+            return ""
+
+        # Sort by probability
+        sorted_probs = sorted(wind_dir_probs.items(), key=lambda item: item[1], reverse=True)
+
+        # Check if the highest probability is > 70%
+        if sorted_probs[0][1] > 0.7:
+            direction = sorted_probs[0][0].split('_')[-2]
+            prob = sorted_probs[0][1]
+            return f"{direction} ({prob:.0%})"
+        else:
+            # Return the two most probable
+            return_str = []
+            for i in range(min(2, len(sorted_probs))):
+                direction = sorted_probs[i][0].split('_')[-2]
+                prob = sorted_probs[i][1]
+                return_str.append(f"{direction} ({prob:.0%})")
+            return " ".join(return_str)
+
+    def to_html_table(self, config: dict) -> str:
+        """
+        Generates a simple HTML table from the ensemble statistics.
+        """
+        if self.stats_df.empty:
+            return "<p>No ensemble statistics to display.</p>"
+
+        df = self.stats_df.copy()
+
+        # 1. Select and rename columns
+        columns_to_display = {
+            'temperature_2m_median': 'Temperature (°C)',
+            'dew_point_2m_median': 'Dew Point (°C)',
+            'pressure_msl_median': 'Pressure (hPa)',
+            'temperature_850hPa_median': 'Temp 850hPa (°C)',
+            'precipitation_probability': 'Precip. Prob.',
+            'precipitation_conditional_average': 'Precip. Avg (mm)',
+            'wind_speed_10m_median': 'Wind Speed (km/h)',
+            'wind_gusts_10m_median': 'Wind Gusts (km/h)',
+            'cape_median': 'CAPE (J/kg)',
+            'weather_code_Fog_prob': 'Fog Prob.',
+            'weather_code_Storm_prob': 'Storm Prob.',
+            'weather_code_Severe_Storm_prob': 'Severe Storm Prob.'
+        }
+        
+        # Filter for existing columns
+        existing_columns = {k: v for k, v in columns_to_display.items() if k in df.columns}
+        display_df = df[list(existing_columns.keys())].rename(columns=existing_columns)
+
+        # 2. Process cloud cover and wind direction
+        display_df['Cloud Cover'] = df.apply(self._format_cloud_cover, axis=1)
+        display_df['Wind Direction'] = df.apply(self._format_wind_direction, axis=1)
+        
+        # Reorder columns to match user request
+        final_columns = [
+            'Temperature (°C)', 'Dew Point (°C)', 'Pressure (hPa)', 'Temp 850hPa (°C)',
+            'Precip. Prob.', 'Precip. Avg (mm)', 'Cloud Cover', 'Wind Speed (km/h)',
+            'Wind Gusts (km/h)', 'Wind Direction', 'CAPE (J/kg)', 'Fog Prob.', 'Storm Prob.', 'Severe Storm Prob.'
+        ]
+        
+        # Filter for columns that were actually created
+        final_columns_existing = [col for col in final_columns if col in display_df.columns]
+        display_df = display_df[final_columns_existing]
+
+        # 3. Format probabilities as percentages
+        for col in ['Precip. Prob.', 'Fog Prob.', 'Storm Prob.', 'Severe Storm Prob.']:
+            if col in display_df.columns:
+                display_df[col] = display_df[col].map('{:.0%}'.format)
+        
+        # 4. Convert index to local timezone
+        timezone = config.get('location', {}).get('timezone')
+        if isinstance(display_df.index, pd.DatetimeIndex) and timezone:
+            display_df.index = display_df.index.tz_convert(timezone)
+
+        # 5. Generate HTML
+        html_table = display_df.to_html(
+            classes='table table-striped table-hover',
+            border=0,
+            float_format='{:.1f}'.format
+        )
+        
+        # Add some basic styling
+        html_string = f"""
+        <html>
+        <head>
+        <title>Ensemble Weather Forecast</title>
+        <style>
+            body {{ font-family: sans-serif; }}
+            table {{ border-collapse: collapse; width: 100%; }}
+            th, td {{ padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }}
+            th {{ background-color: #f2f2f2; }}
+        </style>
+        </head>
+        <body>
+        <h2>Ensemble Weather Forecast</h2>
+        {html_table}
+        </body>
+        </html>
+        """
+        return html_string

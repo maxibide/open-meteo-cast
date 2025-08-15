@@ -68,6 +68,17 @@ def main():
         ensemble.to_csv(output_dir, config)
         ensemble.save_to_db()
 
+        # 8. Create and save HTML table
+        print("\n--- Creating and exporting HTML table ---")
+        html_table = ensemble.to_html_table(config)
+        html_filepath = os.path.join(output_dir, "ensemble_forecast.html")
+        try:
+            with open(html_filepath, "w", encoding="utf-8") as f:
+                f.write(html_table)
+            print(f"Successfully exported HTML table to {html_filepath}")
+        except IOError as e:
+            print(f"Error exporting HTML table to {html_filepath}: {e}")
+
 if __name__ == "__main__":
     main()
 

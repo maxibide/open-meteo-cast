@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 from unittest.mock import MagicMock
 from src.open_meteo_cast.ensemble import Ensemble
 

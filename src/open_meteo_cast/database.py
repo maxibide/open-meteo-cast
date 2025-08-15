@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 import pandas as pd
 from datetime import datetime, timedelta
-from typing import Union
+from typing import Union, Optional
 
 # Define the path for the database in a dedicated data directory
 DB_PATH = Path(__file__).parent.parent.parent / "data" / "forecasts.db"
@@ -263,7 +263,7 @@ def save_statistics(conn: sqlite3.Connection, model_name: str, run_timestamp: da
         """, records)
     print(f"Successfully saved statistics to the database for model {model_name}.")
 
-def save_ensemble_run(conn: sqlite3.Connection, creation_timestamp: datetime, model_runs_info: str) -> int:
+def save_ensemble_run(conn: sqlite3.Connection, creation_timestamp: datetime, model_runs_info: str) -> Optional[int]:
     """
     Saves an ensemble run entry to the database.
 

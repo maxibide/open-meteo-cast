@@ -23,7 +23,7 @@ class Ensemble:
             config: The application configuration dictionary.
         """
         self.models = models
-        self.runs = [f"{model.name}_{model.metadata.get('last_run_availability_time')}" for model in self.models]
+        self.runs = [f"{model.name}_{model.metadata.get('last_run_availability_time', 'unknown') if model.metadata else 'unknown'}" for model in self.models]
         print(f"Calculating ensemble from {[model.name for model in self.models]}")
         self.stats_df = self._calculate_ensemble_stats()
 
@@ -119,9 +119,9 @@ class Ensemble:
             ensemble_run_id = database.save_ensemble_run(conn, creation_timestamp, model_runs_info_json)
 
             # 3. Save ensemble statistics
-            database.save_ensemble_statistics(conn, ensemble_run_id, self.stats_df)
-
-            print(f"Ensemble statistics saved to database with run ID: {ensemble_run_id}")
+            if ensemble_run_id:
+                database.save_ensemble_statistics(conn, ensemble_run_id, self.stats_df)
+                print(f"Ensemble statistics saved to database with run ID: {ensemble_run_id}")
 
         except Exception as e:
             conn.rollback()

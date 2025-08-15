@@ -26,7 +26,8 @@ def test_retrieve_model_variable_success(mock_retry, mock_cached_session, mock_o
         "location": {
             "latitude": 40.7128,
             "longitude": -74.0060
-        }
+        },
+        "forecast_hours": 72
     }
     model_name = "gfs025"
 
@@ -73,7 +74,7 @@ def test_retrieve_model_variable_success(mock_retry, mock_cached_session, mock_o
             "hourly": variable,
             "models": [expected_model],
             "timezone": "auto",
-            "forecast_hours": 72
+            "forecast_hours": 84
         }
     )
 
@@ -96,7 +97,8 @@ def test_retrieve_model_variable_empty_response(mock_retry, mock_cached_session,
         "location": {
             "latitude": 40.7128,
             "longitude": -74.0060
-        }
+        },
+        "forecast_hours": 72
     }
     model_name = "gfs025"
     variable = "temperature_2m"

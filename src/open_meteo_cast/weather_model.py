@@ -10,6 +10,7 @@ from .open_meteo_api import retrieve_model_metadata, retrieve_model_variable
 from .statistics import calculate_percentiles, calculate_precipitation_statistics, calculate_octa_probabilities, calculate_wind_direction_probabilities, calculate_weather_code_probabilities
 
 from .formatting import format_statistics_dataframe
+from .plotting import generate_plots
 
 class WeatherModel:
     """
@@ -271,3 +272,52 @@ class WeatherModel:
             logging.error(f"An error occurred while saving data to the database for {self.name}: {e}")
         finally:
             conn.close()
+
+    def plot_statistics(self, output_dir: str = 'output', config: Dict = {}) -> None:
+        """
+        Generates and saves a combined plot of the calculated statistics for the model.
+        """
+        if not self.statistics:
+            logging.warning(f"No statistics available to plot for {self.name}.")
+            return
+
+        if self.metadata is None:
+            logging.error(f"Error: Metadata not available for {self.name}. Cannot plot statistics.")
+            return
+
+        last_run = self.metadata.get('last_run_initialisation_time')
+        if last_run is None:
+            logging.error(f"Error: Cannot determine last run time for {self.name}. Cannot plot statistics.")
+            return
+
+        timestamp_str = last_run.strftime('%Y%m%dT%H%M%S')
+
+        # Combine all statistics into a single DataFrame for plotting
+        all_stats_df = pd.DataFrame()
+        for variable, stats_df in self.statistics.items():
+            if stats_df is None:
+                logging.warning(f"No statistics to plot for variable '{variable}'.")
+                continue
+
+            # Add prefix to columns to identify the variable
+            prefixed_stats_df = stats_df.add_prefix(f"{variable}_")
+            
+            if all_stats_df.empty:
+                all_stats_df = prefixed_stats_df
+            else:
+                all_stats_df = all_stats_df.join(prefixed_stats_df, how='outer')
+
+        if all_stats_df.empty:
+            logging.warning(f"No statistics to plot for model {self.name}.")
+            return
+
+        # Ensure the index is a DatetimeIndex for plotting
+        if not isinstance(all_stats_df.index, pd.DatetimeIndex):
+            all_stats_df.index = pd.to_datetime(all_stats_df.index)
+
+        # Convert index to local timezone if specified in config
+        timezone = config.get('location', {}).get('timezone')
+        if timezone:
+            all_stats_df.index = all_stats_df.index.tz_convert(timezone)
+
+        generate_plots(all_stats_df, self.name, output_dir, config, timestamp_str)

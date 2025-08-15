@@ -10,6 +10,7 @@ from .formatting import format_statistics_dataframe
 from . import database
 import json
 import importlib.metadata
+from .plotting import generate_plots
 
 class Ensemble:
     """
@@ -48,6 +49,16 @@ class Ensemble:
                 single_model_all_stats = pd.DataFrame()
                 for variable, stats_df in model.statistics.items():
                     if stats_df is not None:
+                        # Ensure the index is a DatetimeIndex
+                        if isinstance(stats_df.index, pd.DatetimeIndex):
+                        # Ensure all timestamps are timezone-aware and in UTC
+                            if stats_df.index.tz is None:
+                                # If timezone-naive, localize to UTC. Assuming data is implicitly UTC if no tz
+                                stats_df.index = stats_df.index.tz_localize('UTC')
+                            else:
+                                # If timezone-aware, convert to UTC
+                                stats_df.index = stats_df.index.tz_convert('UTC')
+
                         prefixed_stats_df = stats_df.add_prefix(f"{variable}_")
                         if single_model_all_stats.empty:
                             single_model_all_stats = prefixed_stats_df
@@ -131,6 +142,28 @@ class Ensemble:
             logging.error(f"Error saving ensemble statistics to the database: {e}")
         finally:
             conn.close()
+
+    def plot_statistics(self, output_dir: str = 'output', config: dict = {}) -> None:
+        """
+        Generates and saves a combined plot of the ensemble statistics.
+        """
+        if self.stats_df.empty:
+            logging.warning("No ensemble statistics to plot.")
+            return
+
+        # Use the current time for the timestamp
+        timestamp_str = datetime.now().strftime('%Y%m%dT%H%M%S')
+
+        # Ensure the index is a DatetimeIndex for plotting
+        if not isinstance(self.stats_df.index, pd.DatetimeIndex):
+            self.stats_df.index = pd.to_datetime(self.stats_df.index)
+
+        # Convert index to local timezone if specified in config
+        timezone = config.get('location', {}).get('timezone')
+        if timezone:
+            self.stats_df.index = self.stats_df.index.tz_convert(timezone)
+
+        generate_plots(self.stats_df, "ensemble", output_dir, config, timestamp_str)
 
     def _format_cloud_cover(self, row):
         # Extract cloud cover probabilities

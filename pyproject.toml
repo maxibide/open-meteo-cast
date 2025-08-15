@@ -23,6 +23,7 @@ flatbuffers = "^25.2.10"
 urllib3-future = "^2.13.900"
 wassima = "1.2.1"
 openmeteo-requests = "^1.5.0"
+matplotlib = "^3.10.5"
 
 [tool.poetry.scripts]
 open-meteo-cast = "open_meteo_cast.main:main"

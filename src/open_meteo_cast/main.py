@@ -94,16 +94,21 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     if new_models:
+        '''
         for new_model in new_models:
             # Export statistics to CSV
             new_model.export_statistics_to_csv(output_dir, config)
-
+            # Plot statistics
+            new_model.plot_statistics(output_dir, config)
+        '''
     # 7 Create and export ensemble
     
         logging.info("--- Creating and exporting ensemble ---")
         ensemble = Ensemble(models, config)
         ensemble.to_csv(output_dir, config)
         ensemble.save_to_db()
+        # Plot ensemble statistics
+        ensemble.plot_statistics(output_dir, config)
 
         # 8. Create and save HTML table
         logging.info("--- Creating and exporting HTML table ---")

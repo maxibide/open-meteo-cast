@@ -24,7 +24,7 @@ def create_tables():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS forecast_runs (
             model_name TEXT NOT NULL,
-            run_timestamp DATETIME NOT NULL,
+            run_timestamp INTEGER NOT NULL,
             PRIMARY KEY (model_name, run_timestamp)
         );
     """)
@@ -34,10 +34,10 @@ def create_tables():
         CREATE TABLE IF NOT EXISTS raw_forecast_data (
             data_id INTEGER PRIMARY KEY AUTOINCREMENT,
             model_name TEXT NOT NULL,
-            run_timestamp DATETIME NOT NULL,
+            run_timestamp INTEGER NOT NULL,
             member TEXT NOT NULL,
             variable TEXT NOT NULL,
-            forecast_timestamp DATETIME NOT NULL,
+            forecast_timestamp INTEGER NOT NULL,
             value REAL NOT NULL,
             FOREIGN KEY (model_name, run_timestamp) REFERENCES forecast_runs (model_name, run_timestamp) ON DELETE CASCADE,
             UNIQUE(model_name, run_timestamp, member, variable, forecast_timestamp)
@@ -49,10 +49,10 @@ def create_tables():
         CREATE TABLE IF NOT EXISTS statistical_forecasts (
             stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
             model_name TEXT NOT NULL,
-            run_timestamp DATETIME NOT NULL,
+            run_timestamp INTEGER NOT NULL,
             variable TEXT NOT NULL,
             statistic TEXT NOT NULL,
-            forecast_timestamp DATETIME NOT NULL,
+            forecast_timestamp INTEGER NOT NULL,
             value REAL,
             FOREIGN KEY (model_name, run_timestamp) REFERENCES forecast_runs (model_name, run_timestamp) ON DELETE CASCADE,
             UNIQUE(model_name, run_timestamp, variable, statistic, forecast_timestamp)
@@ -63,7 +63,7 @@ def create_tables():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ensemble_runs (
             ensemble_run_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            creation_timestamp DATETIME NOT NULL,
+            creation_timestamp INTEGER NOT NULL,
             model_runs_info TEXT NOT NULL
         );
     """)
@@ -75,7 +75,7 @@ def create_tables():
             ensemble_run_id INTEGER NOT NULL,
             variable TEXT NOT NULL,
             statistic TEXT NOT NULL,
-            forecast_timestamp DATETIME NOT NULL,
+            forecast_timestamp INTEGER NOT NULL,
             value REAL,
             FOREIGN KEY (ensemble_run_id) REFERENCES ensemble_runs(ensemble_run_id) ON DELETE CASCADE,
             UNIQUE(ensemble_run_id, variable, statistic, forecast_timestamp)
@@ -100,7 +100,7 @@ def purge_old_runs(retention_days: int):
     cutoff_date = datetime.now() - timedelta(days=retention_days)
 
     # Find old runs
-    cursor.execute("SELECT model_name, run_timestamp FROM forecast_runs WHERE run_timestamp < ?", (cutoff_date.isoformat(),))
+    cursor.execute("SELECT model_name, run_timestamp FROM forecast_runs WHERE run_timestamp < ?", (cutoff_date.timestamp(),))
     old_runs = cursor.fetchall()
 
     if not old_runs:
@@ -138,7 +138,7 @@ def get_last_run_timestamp(model_name: str) -> Union[datetime, None]:
     conn.close()
 
     if result and result[0]:
-        return datetime.fromisoformat(result[0])
+        return datetime.fromtimestamp(result[0])
     return None
 
 def load_raw_data(model_name: str, run_timestamp: datetime) -> dict[str, pd.DataFrame]:
@@ -151,7 +151,9 @@ def load_raw_data(model_name: str, run_timestamp: datetime) -> dict[str, pd.Data
         FROM raw_forecast_data
         WHERE model_name = ? AND run_timestamp = ?
     """
-    raw_df_long = pd.read_sql_query(raw_data_query, conn, params=(model_name, run_timestamp.isoformat()), parse_dates=['forecast_timestamp'])
+    raw_df_long = pd.read_sql_query(raw_data_query, conn, params=(model_name, int(run_timestamp.timestamp())))
+    if not raw_df_long.empty:
+        raw_df_long['forecast_timestamp'] = pd.to_datetime(raw_df_long['forecast_timestamp'], unit='s')
     conn.close()
 
     data = {}
@@ -178,7 +180,9 @@ def load_statistics(model_name: str, run_timestamp: datetime) -> dict[str, pd.Da
         FROM statistical_forecasts
         WHERE model_name = ? AND run_timestamp = ?
     """
-    stats_df_long = pd.read_sql_query(stats_query, conn, params=(model_name, run_timestamp.isoformat()), parse_dates=['forecast_timestamp'])
+    stats_df_long = pd.read_sql_query(stats_query, conn, params=(model_name, int(run_timestamp.timestamp())))
+    if not stats_df_long.empty:
+        stats_df_long['forecast_timestamp'] = pd.to_datetime(stats_df_long['forecast_timestamp'], unit='s')
     conn.close()
 
     statistics = {}
@@ -200,7 +204,7 @@ def save_forecast_run(conn: sqlite3.Connection, model_name: str, run_timestamp: 
     Saves a forecast run entry to the database.
     """
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", (model_name, run_timestamp.isoformat()))
+    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", (model_name, int(run_timestamp.timestamp())))
     print(f"Forecast run for {model_name} at {run_timestamp} recorded.")
 
 def save_raw_data(conn: sqlite3.Connection, model_name: str, run_timestamp: datetime, data: dict[str, pd.DataFrame]):
@@ -221,7 +225,7 @@ def save_raw_data(conn: sqlite3.Connection, model_name: str, run_timestamp: date
         melted_df['member'] = melted_df['member'].str.extract(r'member(\d+)').fillna('0')
 
         records = [
-            (model_name, run_timestamp.isoformat(), row['member'], variable, row['date'].isoformat(), row['value'])
+            (model_name, int(run_timestamp.timestamp()), row['member'], variable, int(row['date'].timestamp()), row['value'])
             for _, row in melted_df.iterrows()
         ]
         cursor.executemany("""
@@ -247,7 +251,7 @@ def save_statistics(conn: sqlite3.Connection, model_name: str, run_timestamp: da
         melted_df.dropna(subset=['value'], inplace=True)
 
         records = [
-            (model_name, run_timestamp.isoformat(), variable, row['statistic'], row['date'].isoformat(), row['value'])
+            (model_name, int(run_timestamp.timestamp()), variable, row['statistic'], int(row['date'].timestamp()), row['value'])
             for _, row in melted_df.iterrows()
         ]
         if not records:
@@ -268,7 +272,7 @@ def save_ensemble_run(conn: sqlite3.Connection, creation_timestamp: datetime, mo
     """
     cursor = conn.cursor()
     cursor.execute("INSERT INTO ensemble_runs (creation_timestamp, model_runs_info) VALUES (?, ?)",
-                   (creation_timestamp.isoformat(), model_runs_info))
+                   (int(creation_timestamp.timestamp()), model_runs_info))
     conn.commit()
     print(f"Ensemble run at {creation_timestamp} recorded.")
     return cursor.lastrowid
@@ -291,7 +295,7 @@ def save_ensemble_statistics(conn: sqlite3.Connection, ensemble_run_id: int, sta
     melted_df[['variable', 'statistic']] = melted_df['variable_statistic'].str.rsplit('_', n=1, expand=True)
     
     records = [
-        (ensemble_run_id, row['variable'], row['statistic'], row['date'].isoformat(), row['value'])
+        (ensemble_run_id, row['variable'], row['statistic'], int(row['date'].timestamp()), row['value'])
         for _, row in melted_df.iterrows()
     ]
     

@@ -49,8 +49,8 @@ def test_purge_old_runs(test_db):
     new_run_time = now - timedelta(days=10)
 
     # Insert an old run and a new run
-    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", ("gfs", old_run_time.isoformat()))
-    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", ("gfs", new_run_time.isoformat()))
+    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", ("gfs", int(old_run_time.timestamp())))
+    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", ("gfs", int(new_run_time.timestamp())))
     
     conn.commit()
     conn.close()
@@ -61,9 +61,9 @@ def test_purge_old_runs(test_db):
     # Check that the old run is purged and the new one remains
     conn = sqlite3.connect(test_db)
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM forecast_runs WHERE run_timestamp = ?", (old_run_time.isoformat(),))
+    cursor.execute("SELECT * FROM forecast_runs WHERE run_timestamp = ?", (int(old_run_time.timestamp()),))
     assert cursor.fetchone() is None, "Old run should be purged"
-    cursor.execute("SELECT * FROM forecast_runs WHERE run_timestamp = ?", (new_run_time.isoformat(),))
+    cursor.execute("SELECT * FROM forecast_runs WHERE run_timestamp = ?", (int(new_run_time.timestamp()),))
     assert cursor.fetchone() is not None, "New run should not be purged"
     conn.close()
 
@@ -78,21 +78,21 @@ def test_get_last_run_timestamp(test_db):
     ecmwf_time = datetime.now() - timedelta(hours=6)
 
     # Insert multiple runs for different models
-    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", ("gfs", gfs_time1.isoformat()))
-    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", ("gfs", gfs_time2.isoformat()))
-    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", ("ecmwf", ecmwf_time.isoformat()))
+    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", ("gfs", int(gfs_time1.timestamp())))
+    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", ("gfs", int(gfs_time2.timestamp())))
+    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp) VALUES (?, ?)", ("ecmwf", int(ecmwf_time.timestamp())))
     conn.commit()
     conn.close()
 
     # Test that the latest timestamp is returned for 'gfs'
     latest_gfs_run = database.get_last_run_timestamp("gfs")
     assert latest_gfs_run is not None
-    assert latest_gfs_run.isoformat(timespec='seconds') == gfs_time2.isoformat(timespec='seconds')
+    assert int(latest_gfs_run.timestamp()) == int(gfs_time2.timestamp())
 
     # Test that the correct timestamp is returned for 'ecmwf'
     latest_ecmwf_run = database.get_last_run_timestamp("ecmwf")
     assert latest_ecmwf_run is not None
-    assert latest_ecmwf_run.isoformat(timespec='seconds') == ecmwf_time.isoformat(timespec='seconds')
+    assert int(latest_ecmwf_run.timestamp()) == int(ecmwf_time.timestamp())
 
     # Test that None is returned for a model with no runs
     assert database.get_last_run_timestamp("icon") is None

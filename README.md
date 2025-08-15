@@ -1,12 +1,12 @@
 # Open-Meteo-Cast
 
-Open-Meteo-Cast is a powerful and flexible tool for generating probabilistic weather forecasts for any location on Earth. It leverages ensemble weather models from the Open-Meteo API to produce detailed statistical forecasts, providing insights into forecast uncertainty.
+Open-Meteo-Cast is a powerful and flexible tool that downloads data from multiple global weather models and combines them to create a single, unified **ensemble forecast** for any location on Earth. By averaging the statistics from different models (like GFS and ECMWF), it produces a more robust and reliable probabilistic forecast, offering deep insights into forecast uncertainty.
 
 This tool is ideal for weather enthusiasts, data analysts, and developers who need reliable, automated weather forecasts.
 
 ## Key Features
 
-*   **Ensemble-Based Forecasts**: Fetches data from multiple global ensemble models (e.g., GFS, ECMWF).
+*   **Unified Ensemble Forecast**: Creates a single, unified forecast by combining and averaging data from all available global models (e.g., GFS, ECMWF) for greater accuracy.
 *   **Comprehensive Weather Variables**: Supports a wide range of variables, including temperature, precipitation, cloud cover, wind dynamics, and more.
 *   **Advanced Statistical Analysis**:
     *   Calculates **percentiles (p10, median, p90)** for continuous variables to represent the range of possible outcomes.
@@ -17,6 +17,7 @@ This tool is ideal for weather enthusiasts, data analysts, and developers who ne
 *   **Automated Updates**: Checks for new model runs to ensure forecasts are always based on the latest data.
 *   **Data Persistence**: Stores all downloaded model data and calculated statistics in a local SQLite database, ensuring data is not lost and can be re-used without re-downloading.
 *   **User-Friendly Output**: Consolidates the full statistical forecast into a single, clean CSV file, with timestamps automatically converted to the user's local timezone.
+*   **HTML Report**: Generates a clean, easy-to-read HTML table of the forecast, perfect for quick viewing in a browser.
 
 ## Usage
 
@@ -45,11 +46,14 @@ This tool is ideal for weather enthusiasts, data analysts, and developers who ne
 
 ## Output
 
-The tool will generate a CSV file in the `output/` directory for each new model run (e.g., `gfs025_20250719T120000.csv`).
+The primary output is the unified ensemble forecast, saved in the `output/` directory in two formats:
 
-The columns are prefixed with the variable name (e.g., `temperature_2m_p10`, `precipitation_probability`, `cloud_cover_octa_3_prob`). This format provides a comprehensive view of the forecast, ready for analysis or visualization.
+*   `ensemble_{timestamp}.csv`: A detailed CSV file containing the full statistical ensemble forecast.
+*   `ensemble_forecast.html`: A user-friendly HTML table summarizing the key forecast variables.
 
-### Example Output
+The columns in the CSV are prefixed with the variable name (e.g., `temperature_2m_p10`, `precipitation_probability`, `cloud_cover_octa_3_prob`). This format provides a comprehensive view of the forecast, ready for analysis or visualization.
+
+### Example CSV Output
 
 ```
 date,temperature_2m_p10,temperature_2m_median,temperature_2m_p90,precipitation_probability,precipitation_conditional_average

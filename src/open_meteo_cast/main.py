@@ -14,7 +14,7 @@ def setup_logging(config: Dict[str, Any]) -> None:
     log_file = logging_config.get('file')
     log_to_console = logging_config.get('console', True)
 
-    handlers = []
+    handlers: list[logging.Handler] = []
     if log_file:
         handlers.append(logging.FileHandler(log_file, mode='a'))
     if log_to_console:

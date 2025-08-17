@@ -46,10 +46,11 @@ This tool is ideal for weather enthusiasts, data analysts, and developers who ne
 
 ## Output
 
-The primary output is the unified ensemble forecast, saved in the `output/` directory in two formats:
+The primary output is the unified ensemble forecast, saved in the `output/` directory in three formats:
 
 *   `ensemble_{timestamp}.csv`: A detailed CSV file containing the full statistical ensemble forecast.
 *   `ensemble_forecast.html`: A user-friendly HTML table summarizing the key forecast variables.
+*   `ensemble_{timestamp}.png`: A plot of the forecast variables.
 
 The columns in the CSV are prefixed with the variable name (e.g., `temperature_2m_p10`, `precipitation_probability`, `cloud_cover_octa_3_prob`). This format provides a comprehensive view of the forecast, ready for analysis or visualization.
 
@@ -61,3 +62,7 @@ date,temperature_2m_p10,temperature_2m_median,temperature_2m_p90,precipitation_p
 2025-08-09 13:00:00,10.8,12.5,13.9,0.15,0.6
 2025-08-09 14:00:00,11.2,12.9,14.3,0.2,0.7
 ```
+
+## Visualizations
+
+The tool automatically generates a PNG image with plots for the key forecast variables, providing a quick way to visualize the forecast.

@@ -76,7 +76,7 @@ def main():
     model_used = config.get('models_used', [])
 
     # 4. Create weather models instances
-    all_models_attempted = [WeatherModel(name, config) for name in model_used]
+    all_models_attempted = [WeatherModel(name, config, config['location']['latitude'], config['location']['longitude']) for name in model_used]
 
     # 5. Filter valid and complete models    
     models = [model for model in all_models_attempted if model.is_valid and model.data]
@@ -104,7 +104,7 @@ def main():
     # 7 Create and export ensemble
     
         logging.info("--- Creating and exporting ensemble ---")
-        ensemble = Ensemble(models, config)
+        ensemble = Ensemble(models, config, config['location']['latitude'], config['location']['longitude'])
         ensemble.to_csv(output_dir, config)
         ensemble.save_to_db()
         # Plot ensemble statistics

@@ -24,10 +24,12 @@ def create_tables():
     # Table for forecast runs to group all data from a single execution
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS forecast_runs (
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
             model_name TEXT NOT NULL,
             run_timestamp INTEGER NOT NULL,
             version TEXT NOT NULL,
-            PRIMARY KEY (model_name, run_timestamp)
+            PRIMARY KEY (latitude, longitude, model_name, run_timestamp)
         );
     """)
 
@@ -35,14 +37,16 @@ def create_tables():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS raw_forecast_data (
             data_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
             model_name TEXT NOT NULL,
             run_timestamp INTEGER NOT NULL,
             member TEXT NOT NULL,
             variable TEXT NOT NULL,
             forecast_timestamp INTEGER NOT NULL,
             value REAL NOT NULL,
-            FOREIGN KEY (model_name, run_timestamp) REFERENCES forecast_runs (model_name, run_timestamp) ON DELETE CASCADE,
-            UNIQUE(model_name, run_timestamp, member, variable, forecast_timestamp)
+            FOREIGN KEY (latitude, longitude, model_name, run_timestamp) REFERENCES forecast_runs (latitude, longitude, model_name, run_timestamp) ON DELETE CASCADE,
+            UNIQUE(latitude, longitude, model_name, run_timestamp, member, variable, forecast_timestamp)
         );
     """)
 
@@ -50,14 +54,16 @@ def create_tables():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS statistical_forecasts (
             stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
             model_name TEXT NOT NULL,
             run_timestamp INTEGER NOT NULL,
             variable TEXT NOT NULL,
             statistic TEXT NOT NULL,
             forecast_timestamp INTEGER NOT NULL,
             value REAL,
-            FOREIGN KEY (model_name, run_timestamp) REFERENCES forecast_runs (model_name, run_timestamp) ON DELETE CASCADE,
-            UNIQUE(model_name, run_timestamp, variable, statistic, forecast_timestamp)
+            FOREIGN KEY (latitude, longitude, model_name, run_timestamp) REFERENCES forecast_runs (latitude, longitude, model_name, run_timestamp) ON DELETE CASCADE,
+            UNIQUE(latitude, longitude, model_name, run_timestamp, variable, statistic, forecast_timestamp)
         );
     """)
 
@@ -65,6 +71,8 @@ def create_tables():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ensemble_runs (
             ensemble_run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
             creation_timestamp INTEGER NOT NULL,
             version TEXT NOT NULL,
             model_runs_info TEXT NOT NULL
@@ -76,6 +84,8 @@ def create_tables():
         CREATE TABLE IF NOT EXISTS ensemble_statistics (
             ensemble_stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
             ensemble_run_id INTEGER NOT NULL,
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
             variable TEXT NOT NULL,
             statistic TEXT NOT NULL,
             forecast_timestamp INTEGER NOT NULL,
@@ -121,11 +131,13 @@ def purge_old_runs(retention_days: int):
     logging.info(f"Successfully purged {len(old_runs)} old forecast run(s).")
 
 
-def get_last_run_timestamp(model_name: str) -> Union[datetime, None]:
+def get_last_run_timestamp(latitude: float, longitude: float, model_name: str) -> Union[datetime, None]:
     """
     Retrieves the most recent run timestamp for a given model from the database.
 
     Args:
+        latitude: The latitude of the location.
+        longitude: The longitude of the location.
         model_name: The name of the model.
 
     Returns:
@@ -134,8 +146,8 @@ def get_last_run_timestamp(model_name: str) -> Union[datetime, None]:
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT MAX(run_timestamp) FROM forecast_runs WHERE model_name = ?",
-        (model_name,)
+        "SELECT MAX(run_timestamp) FROM forecast_runs WHERE latitude = ? AND longitude = ? AND model_name = ?",
+        (latitude, longitude, model_name,)
     )
     result = cursor.fetchone()
     conn.close()
@@ -144,7 +156,7 @@ def get_last_run_timestamp(model_name: str) -> Union[datetime, None]:
         return datetime.fromtimestamp(result[0])
     return None
 
-def load_raw_data(model_name: str, run_timestamp: datetime) -> dict[str, pd.DataFrame]:
+def load_raw_data(latitude: float, longitude: float, model_name: str, run_timestamp: datetime) -> dict[str, pd.DataFrame]:
     """
     Loads raw forecast data for a specific model and run from the database.
     """
@@ -152,9 +164,9 @@ def load_raw_data(model_name: str, run_timestamp: datetime) -> dict[str, pd.Data
     raw_data_query = """
         SELECT forecast_timestamp, member, variable, value
         FROM raw_forecast_data
-        WHERE model_name = ? AND run_timestamp = ?
+        WHERE latitude = ? AND longitude = ? AND model_name = ? AND run_timestamp = ?
     """
-    raw_df_long = pd.read_sql_query(raw_data_query, conn, params=(model_name, int(run_timestamp.timestamp())))
+    raw_df_long = pd.read_sql_query(raw_data_query, conn, params=(latitude, longitude, model_name, int(run_timestamp.timestamp())))
     if not raw_df_long.empty:
         raw_df_long['forecast_timestamp'] = pd.to_datetime(raw_df_long['forecast_timestamp'], unit='s')
     conn.close()
@@ -173,7 +185,7 @@ def load_raw_data(model_name: str, run_timestamp: datetime) -> dict[str, pd.Data
             data[variable] = pivot_df
     return data
 
-def load_statistics(model_name: str, run_timestamp: datetime) -> dict[str, pd.DataFrame]:
+def load_statistics(latitude: float, longitude: float, model_name: str, run_timestamp: datetime) -> dict[str, pd.DataFrame]:
     """
     Loads statistical forecast data for a specific model and run from the database.
     """
@@ -181,9 +193,9 @@ def load_statistics(model_name: str, run_timestamp: datetime) -> dict[str, pd.Da
     stats_query = """
         SELECT forecast_timestamp, variable, statistic, value
         FROM statistical_forecasts
-        WHERE model_name = ? AND run_timestamp = ?
+        WHERE latitude = ? AND longitude = ? AND model_name = ? AND run_timestamp = ?
     """
-    stats_df_long = pd.read_sql_query(stats_query, conn, params=(model_name, int(run_timestamp.timestamp())))
+    stats_df_long = pd.read_sql_query(stats_query, conn, params=(latitude, longitude, model_name, int(run_timestamp.timestamp())))
     if not stats_df_long.empty:
         stats_df_long['forecast_timestamp'] = pd.to_datetime(stats_df_long['forecast_timestamp'], unit='s')
     conn.close()
@@ -202,15 +214,15 @@ def load_statistics(model_name: str, run_timestamp: datetime) -> dict[str, pd.Da
             statistics[variable] = pivot_stats_df
     return statistics
 
-def save_forecast_run(conn: sqlite3.Connection, model_name: str, run_timestamp: datetime, version: str):
+def save_forecast_run(conn: sqlite3.Connection, latitude: float, longitude: float, model_name: str, run_timestamp: datetime, version: str):
     """
     Saves a forecast run entry to the database.
     """
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO forecast_runs (model_name, run_timestamp, version) VALUES (?, ?, ?)", (model_name, int(run_timestamp.timestamp()), version))
+    cursor.execute("INSERT INTO forecast_runs (latitude, longitude, model_name, run_timestamp, version) VALUES (?, ?, ?, ?, ?)", (latitude, longitude, model_name, int(run_timestamp.timestamp()), version))
     logging.info(f"Forecast run for {model_name} at {run_timestamp} recorded.")
 
-def save_raw_data(conn: sqlite3.Connection, model_name: str, run_timestamp: datetime, data: dict[str, pd.DataFrame]):
+def save_raw_data(conn: sqlite3.Connection, latitude: float, longitude: float, model_name: str, run_timestamp: datetime, data: dict[str, pd.DataFrame]):
     """
     Saves raw forecast data to the database.
     """
@@ -228,16 +240,16 @@ def save_raw_data(conn: sqlite3.Connection, model_name: str, run_timestamp: date
         melted_df['member'] = melted_df['member'].str.extract(r'member(\d+)').fillna('0')
 
         records = [
-            (model_name, int(run_timestamp.timestamp()), row['member'], variable, int(row['date'].timestamp()), row['value'])
+            (latitude, longitude, model_name, int(run_timestamp.timestamp()), row['member'], variable, int(row['date'].timestamp()), row['value'])
             for _, row in melted_df.iterrows()
         ]
         cursor.executemany("""
-            INSERT INTO raw_forecast_data (model_name, run_timestamp, member, variable, forecast_timestamp, value)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO raw_forecast_data (latitude, longitude, model_name, run_timestamp, member, variable, forecast_timestamp, value)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, records)
     logging.info(f"Successfully saved raw data to the database for model {model_name}.")
 
-def save_statistics(conn: sqlite3.Connection, model_name: str, run_timestamp: datetime, statistics: dict[str, pd.DataFrame]):
+def save_statistics(conn: sqlite3.Connection, latitude: float, longitude: float, model_name: str, run_timestamp: datetime, statistics: dict[str, pd.DataFrame]):
     """
     Saves calculated statistics to the database.
     """
@@ -254,19 +266,19 @@ def save_statistics(conn: sqlite3.Connection, model_name: str, run_timestamp: da
         melted_df.dropna(subset=['value'], inplace=True)
 
         records = [
-            (model_name, int(run_timestamp.timestamp()), variable, row['statistic'], int(row['date'].timestamp()), row['value'])
+            (latitude, longitude, model_name, int(run_timestamp.timestamp()), variable, row['statistic'], int(row['date'].timestamp()), row['value'])
             for _, row in melted_df.iterrows()
         ]
         if not records:
             continue
 
         cursor.executemany("""
-            INSERT INTO statistical_forecasts (model_name, run_timestamp, variable, statistic, forecast_timestamp, value)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO statistical_forecasts (latitude, longitude, model_name, run_timestamp, variable, statistic, forecast_timestamp, value)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, records)
     logging.info(f"Successfully saved statistics to the database for model {model_name}.")
 
-def save_ensemble_run(conn: sqlite3.Connection, creation_timestamp: datetime, model_runs_info: str, version: str) -> Optional[int]:
+def save_ensemble_run(conn: sqlite3.Connection, latitude: float, longitude: float, creation_timestamp: datetime, model_runs_info: str, version: str) -> Optional[int]:
     """
     Saves an ensemble run entry to the database.
 
@@ -274,13 +286,13 @@ def save_ensemble_run(conn: sqlite3.Connection, creation_timestamp: datetime, mo
         The ID of the newly created ensemble run.
     """
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO ensemble_runs (creation_timestamp, model_runs_info, version) VALUES (?, ?, ?)",
-                   (int(creation_timestamp.timestamp()), model_runs_info, version))
+    cursor.execute("INSERT INTO ensemble_runs (latitude, longitude, creation_timestamp, model_runs_info, version) VALUES (?, ?, ?, ?, ?)",
+                   (latitude, longitude, int(creation_timestamp.timestamp()), model_runs_info, version))
     conn.commit()
     logging.info(f"Ensemble run at {creation_timestamp} recorded.")
     return cursor.lastrowid
 
-def save_ensemble_statistics(conn: sqlite3.Connection, ensemble_run_id: int, statistics_df: pd.DataFrame):
+def save_ensemble_statistics(conn: sqlite3.Connection, ensemble_run_id: int, latitude: float, longitude: float, statistics_df: pd.DataFrame):
     """
     Saves calculated ensemble statistics to the database.
     """
@@ -298,7 +310,7 @@ def save_ensemble_statistics(conn: sqlite3.Connection, ensemble_run_id: int, sta
     melted_df[['variable', 'statistic']] = melted_df['variable_statistic'].str.rsplit('_', n=1, expand=True)
     
     records = [
-        (ensemble_run_id, row['variable'], row['statistic'], int(row['date'].timestamp()), row['value'])
+        (ensemble_run_id, latitude, longitude, row['variable'], row['statistic'], int(row['date'].timestamp()), row['value'])
         for _, row in melted_df.iterrows()
     ]
     
@@ -306,8 +318,8 @@ def save_ensemble_statistics(conn: sqlite3.Connection, ensemble_run_id: int, sta
         return
 
     cursor.executemany("""
-        INSERT INTO ensemble_statistics (ensemble_run_id, variable, statistic, forecast_timestamp, value)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO ensemble_statistics (ensemble_run_id, latitude, longitude, variable, statistic, forecast_timestamp, value)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     """, records)
     conn.commit()
     logging.info(f"Successfully saved ensemble statistics to the database for ensemble run {ensemble_run_id}.")

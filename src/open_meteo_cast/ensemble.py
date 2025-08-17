@@ -17,15 +17,19 @@ class Ensemble:
     A class to combine statistics from multiple WeatherModels into a single ensemble.
     """
 
-    def __init__(self, models: List[WeatherModel], config: dict):
+    def __init__(self, models: List[WeatherModel], config: dict, latitude: float, longitude: float):
         """
         Initializes the Ensemble object with a list of WeatherModel objects.
 
         Args:
             models: A list of WeatherModel objects.
             config: The application configuration dictionary.
+            latitude: The latitude of the location.
+            longitude: The longitude of the location.
         """
         self.models = models
+        self.latitude = latitude
+        self.longitude = longitude
         self.runs = [f"{model.name}_{model.metadata.get('last_run_availability_time', 'unknown') if model.metadata else 'unknown'}" for model in self.models]
         logging.info(f"Calculating ensemble from {[model.name for model in self.models]}")
         self.stats_df = self._calculate_ensemble_stats()
@@ -130,11 +134,11 @@ class Ensemble:
             # 2. Save ensemble run and get the ID
             creation_timestamp = datetime.now()
             version = importlib.metadata.version("open-meteo-cast")
-            ensemble_run_id = database.save_ensemble_run(conn, creation_timestamp, model_runs_info_json, version)
+            ensemble_run_id = database.save_ensemble_run(conn, self.latitude, self.longitude, creation_timestamp, model_runs_info_json, version)
 
             # 3. Save ensemble statistics
             if ensemble_run_id:
-                database.save_ensemble_statistics(conn, ensemble_run_id, self.stats_df)
+                database.save_ensemble_statistics(conn, ensemble_run_id, self.latitude, self.longitude, self.stats_df)
                 logging.info(f"Ensemble statistics saved to database with run ID: {ensemble_run_id}")
 
         except Exception as e:

@@ -16,16 +16,20 @@ class WeatherModel:
     """
     Represents a weather model, handling metadata checks, data loading, and processing.
     """
-    def __init__(self, model_name: str, config: Dict):
+    def __init__(self, model_name: str, config: Dict, latitude: float, longitude: float):
         """
         Initializes the WeatherModel instance.
 
         Args:
             model_name: The name of the model (e.g., 'gfs025').
             config: The application configuration dictionary.
+            latitude: The latitude of the location.
+            longitude: The longitude of the location.
         """
         logging.info(f"--- Processing model: {model_name} ---")
         self.name = model_name
+        self.latitude = latitude
+        self.longitude = longitude
         self.is_valid = False
         self.is_new = False
         self.metadata_url = config.get('api', {}).get('open-meteo', {}).get('ensemble_metadata', {}).get(model_name)
@@ -84,7 +88,7 @@ class WeatherModel:
             logging.error(f"Error: Could not determine current run time for {self.name}.")
             return False
 
-        last_run_from_db = get_last_run_timestamp(self.name)
+        last_run_from_db = get_last_run_timestamp(self.latitude, self.longitude, self.name)
 
         if last_run_from_db is None or current_run_time > last_run_from_db:
             logging.info(f"New model run detected for {self.name}.")
@@ -98,13 +102,13 @@ class WeatherModel:
         Loads the latest available model data and statistics from the database.
         """
         logging.info(f"Loading data from database for model {self.name}...")
-        last_run_timestamp = get_last_run_timestamp(self.name)
+        last_run_timestamp = get_last_run_timestamp(self.latitude, self.longitude, self.name)
         if last_run_timestamp is None:
             logging.warning(f"No data found in database for model {self.name}.")
             return
 
-        self.data = load_raw_data(self.name, last_run_timestamp)
-        self.statistics = load_statistics(self.name, last_run_timestamp)
+        self.data = load_raw_data(self.latitude, self.longitude, self.name, last_run_timestamp)
+        self.statistics = load_statistics(self.latitude, self.longitude, self.name, last_run_timestamp)
 
         logging.info(f"Data for model {self.name} (run: {last_run_timestamp}) loaded successfully from database.")
 
@@ -260,9 +264,9 @@ class WeatherModel:
         try:
             version = importlib.metadata.version("open-meteo-cast")
             conn.execute("BEGIN")
-            save_forecast_run(conn, self.name, last_run, version)
-            save_raw_data(conn, self.name, last_run, self.data)
-            save_statistics(conn, self.name, last_run, self.statistics)
+            save_forecast_run(conn, self.latitude, self.longitude, self.name, last_run, version)
+            save_raw_data(conn, self.latitude, self.longitude, self.name, last_run, self.data)
+            save_statistics(conn, self.latitude, self.longitude, self.name, last_run, self.statistics)
             conn.commit()
         except sqlite3.IntegrityError:
             conn.rollback()

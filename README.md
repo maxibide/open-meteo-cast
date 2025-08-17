@@ -63,6 +63,10 @@ date,temperature_2m_p10,temperature_2m_median,temperature_2m_p90,precipitation_p
 2025-08-09 14:00:00,11.2,12.9,14.3,0.2,0.7
 ```
 
-## Visualizations
+## Database
+
+**Important:** The database schema has been updated to support multiple locations. If you have an existing database, you will need to delete it and start fresh for the new location-aware functionality to work correctly.
+
+
 
 The tool automatically generates a PNG image with plots for the key forecast variables, providing a quick way to visualize the forecast.

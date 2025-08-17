@@ -4,6 +4,47 @@ import os
 import logging
 from typing import Dict, Any, Optional
 
+plt.rcParams.update({
+    "font.family": "DejaVu Sans",
+    "font.size": 10,
+    "axes.titlesize": 13,
+    "axes.labelsize": 11,
+    "axes.grid": True,
+    "grid.linestyle": "--",
+    "grid.alpha": 0.4,
+    "lines.linewidth": 1.3,
+    "legend.frameon": False
+})
+
+def highlight_days_and_hours(ax, df):
+    if df.empty:
+        return
+    # Take the first and last available timestamps
+    start = df.index.min()
+    end = df.index.max()
+    
+    # Create a range of days based on first and last date
+    days = pd.date_range(start=start.normalize(), end=end.normalize(), freq='D')
+    
+    for i, day in enumerate(days):
+        # Alternate day color
+        if i % 2 == 0:
+            ax.axvspan(max(day, start), min(day + pd.Timedelta(days=1), end), 
+                       color='#f0f0f0', alpha=0.25, zorder=0)
+    
+    # Day start lines
+    for day in days:
+        if day >= start and day <= end:
+            ax.axvline(day, color='black', linewidth=1.2, zorder=0)
+    
+    # Special hour lines (6, 12, 18)
+    special_hours = [6, 12, 18]
+    for day in days:
+        for hour in special_hours:
+            ts = day + pd.Timedelta(hours=hour)
+            if ts >= start and ts <= end:
+                ax.axvline(ts, color='gray', linestyle='--', linewidth=0.8, alpha=0.6, zorder=2)
+
 def plot_percentiles(ax: plt.Axes, df: pd.DataFrame, variable_name: str):
     """Plots median, 10th, and 90th percentiles for a given variable."""
     if df.empty:
@@ -19,7 +60,7 @@ def plot_percentiles(ax: plt.Axes, df: pd.DataFrame, variable_name: str):
         ax.fill_between(df.index, df[p10_col], df[p90_col], color='gray', alpha=0.3, label='P10-P90 Range')
         ax.set_title(f'{variable_name.replace("_", " ").title()} Forecast')
         ax.set_ylabel(f'{variable_name.replace("_", " ").title()}')
-        ax.legend()
+        ax.legend(fontsize=9, ncol=2)
         ax.grid(True, linestyle='--', alpha=0.6)
         if variable_name == 'temperature_2m':
             # ax.set_ylim(-10, 45)
@@ -49,6 +90,7 @@ def plot_percentiles(ax: plt.Axes, df: pd.DataFrame, variable_name: str):
             ax.fill_between(df.index, 90, 110, color='orange', alpha=0.3, zorder=0)
             ax.fill_between(df.index, 110, 350, color='red', alpha=0.3, zorder=0)
             ax.set_ylim(ymin, ymax)
+        highlight_days_and_hours(ax, df)
     else:
         logging.warning(f"Missing percentile columns for {variable_name}. Expected: {median_col}, {p10_col}, {p90_col}")
 
@@ -66,6 +108,7 @@ def plot_precipitation_probabilities(ax: plt.Axes, df: pd.DataFrame):
         ax.set_ylim(0, 1)
         ax.legend()
         ax.grid(True, linestyle='--', alpha=0.6)
+        highlight_days_and_hours(ax, df)
     else:
         logging.warning(f"Missing column for precipitation probability. Expected: {prob_col}")
 
@@ -82,6 +125,7 @@ def plot_precipitation_conditional_average(ax: plt.Axes, df: pd.DataFrame):
         ax.set_ylabel('Average (mm)')
         ax.legend()
         ax.grid(True, linestyle='--', alpha=0.6)
+        highlight_days_and_hours(ax, df)
     else:
         logging.warning(f"Missing column for precipitation conditional average. Expected: {avg_col}")
 
@@ -106,8 +150,9 @@ def plot_wind_direction_probabilities(ax: plt.Axes, df: pd.DataFrame):
     ax.set_title('Wind Direction Probabilities')
     ax.set_ylabel('Probability')
     ax.set_ylim(0, 1)
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=8)
     ax.grid(True, linestyle='--', alpha=0.6)
+    highlight_days_and_hours(ax, df)
 
 def plot_cloud_cover_probabilities(ax: plt.Axes, df: pd.DataFrame):
     """Plots cloud cover (octa) probabilities."""
@@ -130,8 +175,9 @@ def plot_cloud_cover_probabilities(ax: plt.Axes, df: pd.DataFrame):
     ax.set_title('Cloud Cover Probabilities')
     ax.set_ylabel('Probability')
     ax.set_ylim(0, 1)
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=8)
     ax.grid(True, linestyle='--', alpha=0.6)
+    highlight_days_and_hours(ax, df)
 
 def plot_weather_code_probabilities(ax: plt.Axes, df: pd.DataFrame):
     """Plots weather code probabilities (Fog, Storm, Severe Storm)."""
@@ -154,8 +200,9 @@ def plot_weather_code_probabilities(ax: plt.Axes, df: pd.DataFrame):
     ax.set_title('Weather Code Probabilities')
     ax.set_ylabel('Probability')
     ax.set_ylim(0, 1)
-    ax.legend()
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=8)
     ax.grid(True, linestyle='--', alpha=0.6)
+    highlight_days_and_hours(ax, df)
 
 def generate_plots(stats_df: pd.DataFrame, name: str, output_dir: str, config: Dict[str, Any], timestamp_str: str):
     """
